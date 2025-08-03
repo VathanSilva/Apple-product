@@ -365,7 +365,7 @@ export default {
     }
     
     const checkCollision = (x, y, slideIndex, excludeId = null) => {
-      const minDistance = CIRCLE_RADIUS * 2 + 6 
+      const minDistance = CIRCLE_RADIUS * 2 + 8
       return circles.value.some(circle => {
         if (circle.id === excludeId || circle.slideIndex !== slideIndex) return false
         const distance = Math.sqrt(Math.pow(circle.x - x, 2) + Math.pow(circle.y - y, 2))

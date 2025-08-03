@@ -1,4 +1,4 @@
-# apple-produt
+# apple-product
 
 ## Project setup
 ```
