@@ -1,10 +1,8 @@
 <template>
   <div class="apple-product-page">
 
-    <!-- Product Showcase -->
     <section class="product-showcase">
       <div class="showcase-container">
-        <!-- Image Gallery -->
         <div class="gallery-wrapper">
           <div class="image-gallery" ref="mainCarousel">
             <div class="gallery-viewport">
@@ -23,7 +21,6 @@
                       :data-slide="index"
                       @click="handleOverlayClick"
                     >
-                      <!-- Measurement Points -->
                       <div
                         v-for="circle in getCirclesForSlide(index)"
                         :key="circle.id"
@@ -46,7 +43,6 @@
               </div>
             </div>
             
-            <!-- Navigation Controls -->
             <button class="gallery-nav prev" @click="prevSlide" :disabled="currentSlide === 0">
               <svg viewBox="0 0 24 24">
                 <path d="M15.41 7.41L14 6l-6 6 6 6 1.41-1.41L10.83 12z"/>
@@ -58,7 +54,6 @@
               </svg>
             </button>
             
-            <!-- Thumbnails -->
             <div class="gallery-thumbnails">
               <div
                 v-for="(image, index) in productImages"
@@ -73,23 +68,19 @@
           </div>
         </div>
         
-        <!-- Product Configuration -->
         <div class="product-config">
-          <!-- Product Info -->
           <div class="product-info">
             <h1 class="product-title">{{ product.title }}</h1>
             <p class="product-description">{{ product.description }}</p>
             <div class="product-price">From ${{ product.price }}</div>
           </div>
 
-          <!-- Measurement Controls -->
           <div class="config-section measurement-section">
             <div class="section-header">
               <h2 class="section-title">Precision Measurement</h2>
               <p class="section-description">Mark and measure specific points on your product with pixel-perfect accuracy</p>
             </div>
             
-            <!-- Measurement Toggle -->
             <div class="control-group">
               <div class="toggle-control">
                 <label class="toggle-label">
@@ -114,7 +105,6 @@
               </div>
             </div>
             
-            <!-- Coordinate Controls -->
             <div class="coordinate-panel" :class="{ disabled: !measurementMode }">
               <h3 class="panel-title">Coordinate Input</h3>
               <div class="coordinate-grid">
@@ -157,7 +147,6 @@
               </button>
             </div>
             
-            <!-- Points List -->
             <div class="points-panel" v-if="Object.keys(circlesBySlide).length > 0">
               <h3 class="panel-title">Measurement Points</h3>
               <div class="points-list">
@@ -197,7 +186,6 @@
             </div>
           </div>
           
-          <!-- Material Selection -->
           <div class="config-section material-section">
             <div class="section-header">
               <h2 class="section-title">Material Selection</h2>
@@ -227,7 +215,6 @@
             </div>
           </div>
           
-          <!-- Action Section -->
           <div class="action-section">
             <button class="action-button large primary" @click="submitData">
               <svg viewBox="0 0 24 24">
@@ -254,7 +241,6 @@ import { computed, onMounted, onUnmounted, reactive, ref } from 'vue'
 export default {
   name: 'AppleProductPage',
   setup() {
-    // Reactive data
     const currentSlide = ref(0)
     const measurementMode = ref(false)
     const circles = ref([])
@@ -266,21 +252,17 @@ export default {
     const yInput = ref('')
     const isDragging = ref(false)
     
-    // Refs
     const mainCarousel = ref(null)
     const carouselTrack = ref(null)
     
-    // Constants
-    const CIRCLE_RADIUS = 25 // Reduced for better visual appeal
+    const CIRCLE_RADIUS = 25 
     
-    // Product data
     const product = reactive({
       title: 'Premium Wireless Headphones',
       description: 'Experience crystal-clear sound quality with our latest wireless technology and premium materials designed for all-day comfort.',
       price: 299.99
     })
     
-    // Product images
     const productImages = ref([
       {
         url: 'https://images.unsplash.com/photo-1505740420928-5e560c06d30e?w=800&h=800&fit=crop&crop=center',
@@ -300,7 +282,6 @@ export default {
       }
     ])
     
-    // Materials
     const materials = ref([
       {
         id: 'aluminum',
@@ -324,7 +305,6 @@ export default {
       }
     ])
     
-    // Computed properties
     const totalSlides = computed(() => productImages.value.length)
     
     const circlesBySlide = computed(() => {
@@ -338,14 +318,12 @@ export default {
       return grouped
     })
     
-    // Helper function to constrain coordinates within bounds
     const constrainCoordinates = (x, y, overlayRect) => {
       const constrainedX = Math.max(CIRCLE_RADIUS, Math.min(overlayRect.width - CIRCLE_RADIUS, x))
       const constrainedY = Math.max(CIRCLE_RADIUS, Math.min(overlayRect.height - CIRCLE_RADIUS, y))
       return { x: constrainedX, y: constrainedY }
     }
     
-    // Methods
     const goToSlide = (slideIndex) => {
       currentSlide.value = slideIndex
     }
@@ -403,7 +381,6 @@ export default {
       const constrained = constrainCoordinates(x, y, rect)
       
       if (checkCollision(constrained.x, constrained.y, slideIndex)) {
-        // Try to find a nearby valid position
         let found = false
         let attempts = 0
         const maxAttempts = 20
@@ -453,7 +430,6 @@ export default {
       selectedCircle.value = circle
       xInput.value = Math.round(circle.x)
       yInput.value = Math.round(circle.y)
-      // Switch to the slide containing this circle
       currentSlide.value = circle.slideIndex
     }
     
@@ -596,7 +572,6 @@ export default {
       }
     }
     
-    // Touch handling for mobile
     let touchStartX = 0
     let touchStartY = 0
     let isSwipeGesture = false
@@ -650,7 +625,6 @@ export default {
     })
     
     return {
-      // Reactive data
       currentSlide,
       measurementMode,
       circles,
@@ -660,20 +634,16 @@ export default {
       xInput,
       yInput,
       
-      // Refs
       mainCarousel,
       carouselTrack,
       
-      // Static data
       product,
       productImages,
       materials,
       
-      // Computed
       totalSlides,
       circlesBySlide,
       
-      // Methods
       goToSlide,
       nextSlide,
       prevSlide,
@@ -695,14 +665,12 @@ export default {
 </script>
 
 <style scoped>
-/* Base Styles */
 .apple-product-page {
   font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'Segoe UI', Roboto, sans-serif;
   background: #ffffff;
   min-height: 100vh;
 }
 
-/* Hero Section */
 .hero-section {
   background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
   color: white;
@@ -751,7 +719,6 @@ export default {
   opacity: 0.95;
 }
 
-/* Product Showcase */
 .product-showcase {
   padding: 40px 20px;
 }
@@ -765,7 +732,6 @@ export default {
   align-items: start;
 }
 
-/* Gallery Styles */
 .gallery-wrapper {
   position: sticky;
   top: 40px;
@@ -813,7 +779,6 @@ export default {
   border-radius: 12px;
 }
 
-/* Measurement Overlay */
 .measurement-overlay {
   position: absolute;
   top: 0;
@@ -830,8 +795,6 @@ export default {
   cursor: crosshair;
 }
 
-/* Measurement Points */
-/* Updated Measurement Points - Remove inside circle color */
 .measurement-point {
   position: absolute;
   width: 50px;
@@ -845,8 +808,8 @@ export default {
 .point-inner {
   width: 100%;
   height: 100%;
-  background: transparent; /* Changed from rgba(0, 122, 255, 0.9) to transparent */
-  border: 3px solid rgba(0, 122, 255, 0.9); /* Added blue border */
+  background: transparent; 
+  border: 3px solid rgba(0, 122, 255, 0.9); 
   border-radius: 50%;
   display: flex;
   align-items: center;
@@ -856,40 +819,39 @@ export default {
 }
 
 .point-label {
-  color: rgba(0, 122, 255, 0.9); /* Changed from white to blue to match border */
+  color: rgba(0, 122, 255, 0.9); 
   font-size: 12px;
   font-weight: 700;
 }
 
 .measurement-point:hover .point-inner {
   transform: scale(1.15);
-  background: transparent; /* Keep transparent on hover */
-  border-color: rgba(0, 122, 255, 1); /* Solid blue border on hover */
+  background: transparent; 
+  border-color: rgba(0, 122, 255, 1);
   box-shadow: 0 8px 30px rgba(0, 122, 255, 0.5);
 }
 
 .measurement-point.selected .point-inner {
-  background: transparent; /* Keep transparent when selected */
-  border-color: rgba(255, 59, 48, 0.9); /* Red border when selected */
+  background: transparent;
+  border-color: rgba(255, 59, 48, 0.9); 
   box-shadow: 0 4px 20px rgba(255, 59, 48, 0.4);
 }
 
 .measurement-point.selected .point-label {
-  color: rgba(255, 59, 48, 0.9); /* Red text when selected */
+  color: rgba(255, 59, 48, 0.9);
 }
 
 .measurement-point.dragging .point-inner {
   transform: scale(1.2);
-  background: transparent; /* Keep transparent when dragging */
-  border-color: rgba(255, 59, 48, 1); /* Solid red border when dragging */
+  background: transparent; 
+  border-color: rgba(255, 59, 48, 1);
   box-shadow: 0 12px 40px rgba(255, 59, 48, 0.6);
 }
 
 .measurement-point.dragging .point-label {
-  color: rgba(255, 59, 48, 1); /* Solid red text when dragging */
+  color: rgba(255, 59, 48, 1);
 }
 
-/* Gallery Navigation */
 .gallery-nav {
   position: absolute;
   top: 50%;
@@ -934,7 +896,6 @@ export default {
   fill: #1d1d1f;
 }
 
-/* Gallery Thumbnails */
 .gallery-thumbnails {
   display: flex;
   gap: 12px;
@@ -963,7 +924,6 @@ export default {
   object-fit: cover;
 }
 
-/* Product Info */
 .product-info {
   padding-bottom: 32px;
   border-bottom: 1px solid #e5e5ea;
@@ -991,7 +951,6 @@ export default {
   color: #1d1d1f;
 }
 
-/* Product Configuration */
 .product-config {
   display: flex;
   flex-direction: column;
@@ -1024,7 +983,6 @@ export default {
   line-height: 1.5;
 }
 
-/* Control Groups */
 .control-group {
   margin-bottom: 32px;
 }
@@ -1097,7 +1055,6 @@ export default {
   fill: #007aff;
 }
 
-/* Coordinate Panel */
 .coordinate-panel {
   background: #f8f9fa;
   border-radius: 16px;
@@ -1171,7 +1128,6 @@ export default {
   margin-top: 16px;
 }
 
-/* Action Buttons */
 .action-button {
   display: inline-flex;
   align-items: center;
@@ -1224,7 +1180,6 @@ export default {
   transform: none !important;
 }
 
-/* Points Panel */
 .points-panel {
   background: #f8f9fa;
   border-radius: 16px;
@@ -1336,7 +1291,6 @@ export default {
   height: 14px;
 }
 
-/* Materials Grid */
 .materials-grid {
   display: grid;
   grid-template-columns: 1fr;
@@ -1435,14 +1389,12 @@ export default {
   opacity: 1;
 }
 
-/* Action Section */
 .action-section {
   display: flex;
   flex-direction: column;
   gap: 16px;
 }
 
-/* Responsive Design */
 @media (max-width: 1200px) {
   .showcase-container {
     grid-template-columns: 1fr;
@@ -1510,7 +1462,6 @@ export default {
   }
 }
 
-/* Dark mode support */
 @media (prefers-color-scheme: dark) {
   .apple-product-page {
     background: #ffffff;
