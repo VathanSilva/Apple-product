@@ -258,27 +258,27 @@ export default {
     const CIRCLE_RADIUS = 25 
     
     const product = reactive({
-      title: 'Premium Wireless Headphones',
-      description: 'Experience crystal-clear sound quality with our latest wireless technology and premium materials designed for all-day comfort.',
-      price: 299.99
+      title: 'iPhone 16 Pro',
+      description: 'Your new iPhone 16 Pro Max. Just the way you want it.',
+      price: 1199
     })
     
     const productImages = ref([
       {
-        url: 'https://images.unsplash.com/photo-1505740420928-5e560c06d30e?w=800&h=800&fit=crop&crop=center',
-        alt: 'Wireless Headphones - Front View'
+        url: 'https://store.storeimages.cdn-apple.com/1/as-images.apple.com/is/iphone-16-pro-finish-select-202409-6-9inch_GEO_US?wid=5120&hei=2880&fmt=webp&qlt=90&.v=eUdsd0dIb3VUOXdtWkY0VFUwVE8vbEdkZHNlSjBQRklnaFB2d3I5MW94NUZqUFNQc3E5VDh2SEx1ZlJpSjNkR0FOL1haWCt6TDJ0UWlLb09XajVNdENYR1ZZZnEyMVlVQUliTThGMjNyaFFDdURYTkVwaGQzbSsxZFlGem8yMnNkU3dydy9HM2lySFhSSEZkUTBtb0tR&traceId=1',
+        alt: 'iPhone 16 Pro'
       },
       {
-        url: 'https://images.unsplash.com/photo-1484704849700-f032a568e944?w=800&h=800&fit=crop&crop=center',
-        alt: 'Wireless Headphones - Side View'
+        url: 'https://store.storeimages.cdn-apple.com/1/as-images.apple.com/is/iphone-16-pro-finish-select-202409-6-9inch_AV1?wid=5120&hei=2880&fmt=webp&qlt=90&.v=eUdsd0dIb3VUOXdtWkY0VFUwVE8vbEdkZHNlSjBQRklnaFB2d3I5MW94NENxZ2Y2UndFVkhoZG1DQ0NWVTFWa2xjZnhHRHJyenVmME5KTm9Sd1ZaU3NqbWRhTGpRM2xxVWJRWUhSaDlCQ3FBdHR2dFhwdGUzbmtydVhBa0gxTE5GQlRRRytmTHd2bTlDU2RZMUtqVTRR&traceId=1',
+        alt: 'iPhone 16 Pro'
       },
       {
-        url: 'https://images.unsplash.com/photo-1583394838336-acd977736f90?w=800&h=800&fit=crop&center',
-        alt: 'Wireless Headphones - Detail View'
+        url: 'https://store.storeimages.cdn-apple.com/1/as-images.apple.com/is/iphone-16-pro-finish-select-202409-6-9inch_AV2?wid=5120&hei=2880&fmt=webp&qlt=90&.v=eUdsd0dIb3VUOXdtWkY0VFUwVE8vbEdkZHNlSjBQRklnaFB2d3I5MW94NUYwNEIwcFZiSzRpTGtjOVdwSCt4N2xjZnhHRHJyenVmME5KTm9Sd1ZaU3NqbWRhTGpRM2xxVWJRWUhSaDlCQ29INlpMOUhoWTNUbUIrQVc3a2xXUGdRRXB6YUhNcms5Z1pYZXdkbUhocnBn&traceId=1',
+        alt: 'iPhone 16 Pro'
       },
       {
-        url: 'https://images.unsplash.com/photo-1572536147248-ac59a8abfa4b?w=800&h=800&fit=crop&crop=center',
-        alt: 'Wireless Headphones - Lifestyle'
+        url: 'https://store.storeimages.cdn-apple.com/1/as-images.apple.com/is/iphone-16-pro-finish-select-202409-6-9inch_AV3?wid=5120&hei=2880&fmt=webp&qlt=90&.v=eUdsd0dIb3VUOXdtWkY0VFUwVE8vbEdkZHNlSjBQRklnaFB2d3I5MW94NmMyUjc1U3JwZ2VscGtUR0tSYnFmSGxjZnhHRHJyenVmME5KTm9Sd1ZaU3NqbWRhTGpRM2xxVWJRWUhSaDlCQ294WmV3am9pcVFFaG9jVWxZNFpSejdsWG55WFNZREIrcHRwdlRvMGw2S3BR&traceId=1',
+        alt: 'iPhone 16 Pro'
       }
     ])
     
@@ -365,7 +365,7 @@ export default {
     }
     
     const checkCollision = (x, y, slideIndex, excludeId = null) => {
-      const minDistance = CIRCLE_RADIUS * 2 + 10 
+      const minDistance = CIRCLE_RADIUS * 2 + 6 
       return circles.value.some(circle => {
         if (circle.id === excludeId || circle.slideIndex !== slideIndex) return false
         const distance = Math.sqrt(Math.pow(circle.x - x, 2) + Math.pow(circle.y - y, 2))
@@ -728,13 +728,13 @@ export default {
   margin: 0 auto;
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: 80px;
+  gap: 20px;
   align-items: start;
 }
 
 .gallery-wrapper {
   position: sticky;
-  top: 40px;
+  top: 16px;
 }
 
 .image-gallery {
@@ -749,7 +749,7 @@ export default {
   position: relative;
   overflow: hidden;
   border-radius: 16px;
-  aspect-ratio: 1;
+  aspect-ratio: 1.25;
   background: #f8f9fa;
 }
 
@@ -815,7 +815,6 @@ export default {
   align-items: center;
   justify-content: center;
   box-shadow: 0 4px 20px rgba(0, 122, 255, 0.3);
-  backdrop-filter: blur(10px);
 }
 
 .point-label {
