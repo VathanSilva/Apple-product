@@ -20,6 +20,7 @@
                       :class="{ 'active': measurementMode }"
                       :data-slide="index"
                       @click="handleOverlayClick"
+                      @touchstart="handleOverlayClick"
                     >
                       <div
                         v-for="circle in getCirclesForSlide(index)"
@@ -31,6 +32,7 @@
                         }"
                         :style="{ left: circle.x + 'px', top: circle.y + 'px' }"
                         @mousedown="handleCircleMouseDown($event, circle)"
+                        @touchstart="handleCircleMouseDown($event, circle)"
                         @click.stop="selectCircle(circle)"
                       >
                         <div class="point-inner">
@@ -318,6 +320,19 @@ export default {
       return grouped
     })
     
+    const getEventCoords = (event) => {
+      if (event.touches && event.touches.length > 0) {
+        return {
+          x: event.touches[0].clientX,
+          y: event.touches[0].clientY
+        }
+      }
+      return {
+        x: event.clientX,
+        y: event.clientY
+      }
+    }
+    
     const constrainCoordinates = (x, y, overlayRect) => {
       const constrainedX = Math.max(CIRCLE_RADIUS, Math.min(overlayRect.width - CIRCLE_RADIUS, x))
       const constrainedY = Math.max(CIRCLE_RADIUS, Math.min(overlayRect.height - CIRCLE_RADIUS, y))
@@ -459,8 +474,9 @@ export default {
       if (slideIndex !== currentSlide.value) return
       
       const rect = overlay.getBoundingClientRect()
-      const x = event.clientX - rect.left
-      const y = event.clientY - rect.top
+      const coords = getEventCoords(event)
+      const x = coords.x - rect.left
+      const y = coords.y - rect.top
       
       addCircle(x, y, slideIndex)
     }
@@ -499,16 +515,19 @@ export default {
       
       const overlay = event.target.closest('.measurement-overlay')
       const rect = overlay.getBoundingClientRect()
-      const startX = event.clientX
-      const startY = event.clientY
+      
+      const startCoords = getEventCoords(event)
+      const startX = startCoords.x
+      const startY = startCoords.y
       const initialX = circle.x
       const initialY = circle.y
       
-      const onMouseMove = (e) => {
+      const onMove = (e) => {
         if (!isDragging.value || draggedCircle.value !== circle) return
         
-        const deltaX = e.clientX - startX
-        const deltaY = e.clientY - startY
+        const coords = getEventCoords(e)
+        const deltaX = coords.x - startX
+        const deltaY = coords.y - startY
         
         let newX = initialX + deltaX
         let newY = initialY + deltaY
@@ -523,18 +542,27 @@ export default {
         }
       }
       
-      const onMouseUp = () => {
+      const onTouchMove = (e) => {
+        e.preventDefault()
+        onMove(e)
+      }
+      
+      const onEnd = () => {
         if (draggedCircle.value === circle) {
           isDragging.value = false
           draggedCircle.value = null
         }
         
-        document.removeEventListener('mousemove', onMouseMove)
-        document.removeEventListener('mouseup', onMouseUp)
+        document.removeEventListener('mousemove', onMove)
+        document.removeEventListener('mouseup', onEnd)
+        document.removeEventListener('touchmove', onTouchMove)
+        document.removeEventListener('touchend', onEnd)
       }
       
-      document.addEventListener('mousemove', onMouseMove)
-      document.addEventListener('mouseup', onMouseUp)
+      document.addEventListener('mousemove', onMove)
+      document.addEventListener('mouseup', onEnd)
+      document.addEventListener('touchmove', onTouchMove, { passive: false })
+      document.addEventListener('touchend', onEnd)
     }
     
     const submitData = () => {
@@ -793,6 +821,7 @@ export default {
 .measurement-overlay.active {
   pointer-events: all;
   cursor: crosshair;
+  touch-action: none; 
 }
 
 .measurement-point {
@@ -803,6 +832,7 @@ export default {
   transform: translate(-50%, -50%);
   transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
   z-index: 15;
+  touch-action: none; 
 }
 
 .point-inner {
@@ -824,7 +854,6 @@ export default {
 }
 
 .measurement-point:hover .point-inner {
-  transform: scale(1.15);
   background: transparent; 
   border-color: rgba(0, 122, 255, 1);
   box-shadow: 0 8px 30px rgba(0, 122, 255, 0.5);
@@ -841,7 +870,6 @@ export default {
 }
 
 .measurement-point.dragging .point-inner {
-  transform: scale(1.2);
   background: transparent; 
   border-color: rgba(255, 59, 48, 1);
   box-shadow: 0 12px 40px rgba(255, 59, 48, 0.6);
@@ -1444,6 +1472,26 @@ export default {
   .materials-grid {
     grid-template-columns: 1fr;
   }
+  
+  .measurement-point {
+    width: 50px; 
+    height: 50px;
+  }
+  
+  .measurement-point::before {
+    content: '';
+    position: absolute;
+    top: -15px;
+    left: -15px;
+    right: -15px;
+    bottom: -15px;
+    z-index: -1;
+  }
+  
+  .point-inner {
+    width: 100%;
+    height: 100%;
+  }
 }
 
 @media (max-width: 480px) {
@@ -1458,6 +1506,18 @@ export default {
   .thumbnail {
     width: 50px;
     height: 50px;
+  }
+  
+  .measurement-point {
+    width: 50px;
+    height: 50px;
+  }
+  
+  .measurement-point::before {
+    top: -20px;
+    left: -20px;
+    right: -20px;
+    bottom: -20px;
   }
 }
 
