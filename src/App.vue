@@ -1152,7 +1152,7 @@ export default {
   font-size: 0.875rem;
   color: #86868b;
   pointer-events: none;
-  margin-top: 16px;
+  margin-top: 10px;
 }
 
 .action-button {
