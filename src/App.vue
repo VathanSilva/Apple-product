@@ -196,23 +196,42 @@
             
             <div class="materials-grid">
               <div
-                v-for="material in materials"
+                v-for="(material, index) in materials"
                 :key="material.id"
                 class="material-card"
-                :class="{ selected: selectedMaterial === material.id }"
+                :class="{ 
+                  selected: selectedMaterial === material.id,
+                  'animate-in': selectedMaterial === material.id
+                }"
+                :style="{ 
+                  '--material-color': material.color,
+                  '--material-gradient': material.gradient,
+                  '--animation-delay': index * 0.1 + 's'
+                }"
                 @click="selectMaterial(material.id)"
               >
+                <div class="material-visual">
+                  <div class="material-icon">
+                    <svg viewBox="0 0 24 24">
+                      <path :d="material.icon"/>
+                    </svg>
+                  </div>
+                  <div class="material-sample"></div>
+                </div>
                 <div class="material-content">
                   <h3 class="material-name">{{ material.name }}</h3>
                   <p class="material-description">{{ material.description }}</p>
                 </div>
                 <div class="material-indicator">
                   <div class="selection-check">
-                    <svg viewBox="0 0 24 24">
-                      <path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/>
-                    </svg>
+                    <div class="check-animation">
+                      <svg viewBox="0 0 24 24">
+                        <path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/>
+                      </svg>
+                    </div>
                   </div>
                 </div>
+                <div class="selection-ripple"></div>
               </div>
             </div>
           </div>
@@ -288,22 +307,42 @@ export default {
       {
         id: 'aluminum',
         name: 'Premium Aluminum',
-        description: 'Lightweight aerospace-grade aluminum with anodized finish for exceptional durability and style.'
+        description: 'Lightweight aerospace-grade aluminum with anodized finish for exceptional durability and style.',
+        color: '#2C2C2C',
+        gradient: 'linear-gradient(135deg, #C0C0C0, #E8E8E8)',
+        icon: 'M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8z'
       },
       {
         id: 'steel',
         name: 'Stainless Steel',
-        description: 'Medical-grade stainless steel offering superior strength and corrosion resistance.'
+        description: 'Medical-grade stainless steel offering superior strength and corrosion resistance.',
+        color: '#2C2C2C',
+        gradient: 'linear-gradient(135deg, #B8C5D1, #D6E3F0)',
+        icon: 'M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z'
       },
       {
         id: 'titanium',
         name: 'Titanium Alloy',
-        description: 'Ultra-lightweight titanium alloy with unmatched strength-to-weight ratio.'
+        description: 'Ultra-lightweight titanium alloy with unmatched strength-to-weight ratio.',
+        color: '#2C2C2C',
+        gradient: 'linear-gradient(135deg, #A0A0A0, #C8C8C8)',
+        icon: 'M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 17.93c-3.94-.49-7-3.85-7-7.93 0-.62.08-1.21.21-1.79L9 15v1c0 1.1.9 2 2 2v1.93zm6.9-2.54c-.26-.81-1-1.39-1.9-1.39h-1v-3c0-.55-.45-1-1-1H8v-2h2c.55 0 1-.45 1-1V7h2c1.1 0 2-.9 2-2v-.41c2.93 1.19 5 4.06 5 7.41 0 2.08-.8 3.97-2.1 5.39z'
       },
       {
         id: 'carbon-fiber',
         name: 'Carbon Fiber',
-        description: 'Advanced carbon fiber composite offering maximum strength with minimal weight.'
+        description: 'Advanced carbon fiber composite offering maximum strength with minimal weight.',
+        color: '#2C2C2C',
+        gradient: 'linear-gradient(135deg, #2C2C2C, #4A4A4A)',
+        icon: 'M20 4H4c-1.11 0-1.99.89-1.99 2L2 18c0 1.11.89 2 2 2h16c1.11 0 2-.89 2-2V6c0-1.11-.89-2-2-2zm0 14H4V8h16v10z'
+      },
+      {
+        id: 'ceramic',
+        name: 'Advanced Ceramic',
+        description: 'Ultra-premium ceramic finish with scratch-resistant properties and refined aesthetics.',
+        color: '#2C2C2C',
+        gradient: 'linear-gradient(135deg, #B8C5D1, #D6E3F0)',
+        icon: 'M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z'
       }
     ])
     
@@ -463,6 +502,23 @@ export default {
     
     const selectMaterial = (materialId) => {
       selectedMaterial.value = materialId
+      
+      setTimeout(() => {
+        const allCards = document.querySelectorAll('.material-card')
+        allCards.forEach((card, index) => {
+          const material = materials.value[index]
+          if (material.id === materialId) {
+            const ripple = card.querySelector('.selection-ripple')
+            ripple.style.transform = 'scale(1)'
+            ripple.style.opacity = '0.6'
+            
+            setTimeout(() => {
+              ripple.style.transform = 'scale(1.5)'
+              ripple.style.opacity = '0'
+            }, 150)
+          }
+        })
+      }, 50)
     }
     
     const handleOverlayClick = (event) => {
@@ -1321,21 +1377,32 @@ export default {
 .materials-grid {
   display: grid;
   grid-template-columns: 1fr;
-  gap: 16px;
+  gap: 20px;
   margin-bottom: 32px;
 }
 
 .material-card {
   display: flex;
   align-items: center;
-  padding: 20px;
+  padding: 24px;
   border: 2px solid #e5e5ea;
-  border-radius: 16px;
+  border-radius: 20px;
   cursor: pointer;
-  transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+  transition: all 0.4s cubic-bezier(0.16, 1, 0.3, 1);
   background: white;
   position: relative;
   overflow: hidden;
+  opacity: 0;
+  transform: translateY(20px);
+  animation: materialFadeIn 0.6s ease forwards;
+  animation-delay: var(--animation-delay);
+}
+
+@keyframes materialFadeIn {
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 .material-card::before {
@@ -1345,75 +1412,262 @@ export default {
   left: -100%;
   width: 100%;
   height: 100%;
-  background: linear-gradient(90deg, transparent, rgba(0, 122, 255, 0.05), transparent);
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.4), transparent);
   transition: left 0.6s ease;
-}
-
-.material-card:hover {
-  border-color: #007aff;
-  transform: translateY(-2px);
-  box-shadow: 0 8px 30px rgba(0, 122, 255, 0.15);
+  z-index: 1;
 }
 
 .material-card:hover::before {
   left: 100%;
 }
 
+.material-card:hover:not(.selected) {
+  border-color: rgba(0, 122, 255, 0.3);
+  transform: translateY(-4px);
+  box-shadow: 0 12px 40px rgba(0, 122, 255, 0.1);
+}
+
 .material-card.selected {
-  border-color: #007aff;
-  background: linear-gradient(135deg, rgba(0, 122, 255, 0.05), rgba(0, 122, 255, 0.02));
-  transform: translateY(-2px);
-  box-shadow: 0 8px 30px rgba(0, 122, 255, 0.2);
+  border-color: #2C2C2C;
+  background: rgba(44, 44, 44, 0.05);
+  transform: translateY(-6px) scale(1.02);
+  box-shadow: 0 16px 50px rgba(44, 44, 44, 0.25);
+  animation: selectedPulse 2s ease-in-out infinite;
+  opacity: 1;
+}
+
+@keyframes selectedPulse {
+  0%, 100% { 
+    box-shadow: 0 16px 50px rgba(44, 44, 44, 0.25);
+  }
+  50% { 
+    box-shadow: 0 20px 60px rgba(44, 44, 44, 0.35);
+  }
+}
+
+.material-card.animate-in {
+  animation: materialSelectBounce 0.6s cubic-bezier(0.68, -0.55, 0.265, 1.55);
+}
+
+@keyframes materialSelectBounce {
+  0% { 
+    transform: translateY(-6px) scale(1.02);
+  }
+  50% { 
+    transform: translateY(-8px) scale(1.05);
+  }
+  100% { 
+    transform: translateY(-6px) scale(1.02);
+  }
+}
+
+.material-visual {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  margin-right: 20px;
+  position: relative;
+}
+
+.material-icon {
+  width: 48px;
+  height: 48px;
+  border-radius: 12px;
+  background: var(--material-gradient);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 8px;
+  transition: all 0.3s ease;
+  position: relative;
+  overflow: hidden;
+}
+
+.material-icon::before {
+  content: '';
+  position: absolute;
+  top: -50%;
+  left: -50%;
+  width: 200%;
+  height: 200%;
+  background: conic-gradient(from 0deg, transparent, rgba(255, 255, 255, 0.3), transparent);
+  animation: iconRotate 3s linear infinite;
+  opacity: 0;
+  transition: opacity 0.3s ease;
+}
+
+.material-card.selected .material-icon::before {
+  opacity: 1;
+}
+
+.material-card.selected .material-icon {
+  background: linear-gradient(135deg, #2C2C2C, #1a1a1a);
+  box-shadow: 0 4px 20px rgba(44, 44, 44, 0.4);
+}
+
+@keyframes iconRotate {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+.material-icon svg {
+  width: 24px;
+  height: 24px;
+  fill: white;
+  position: relative;
+  z-index: 2;
+  filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.2));
+}
+
+.material-sample {
+  width: 32px;
+  height: 8px;
+  border-radius: 4px;
+  background: var(--material-gradient);
+  position: relative;
+  overflow: hidden;
+  box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.2);
+}
+
+.material-sample::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: -100%;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.6), transparent);
+  transition: left 0.8s ease;
+}
+
+.material-card:hover .material-sample::before,
+.material-card.selected .material-sample::before {
+  left: 100%;
 }
 
 .material-content {
   flex: 1;
+  position: relative;
+  z-index: 2;
 }
 
 .material-name {
-  font-size: 1.125rem;
+  font-size: 1.25rem;
   font-weight: 600;
   color: #1d1d1f;
   margin: 0 0 8px 0;
+  transition: all 0.3s ease;
+}
+
+.material-card.selected .material-name {
+  color: #007aff;
+  text-shadow: none;
+  font-weight: 700;
 }
 
 .material-description {
   color: #86868b;
   margin: 0;
   font-size: 0.875rem;
-  line-height: 1.4;
+  line-height: 1.5;
+  transition: color 0.3s ease;
+}
+
+.material-card.selected .material-description {
+  color: #1d1d1f;
+  font-weight: 500;
 }
 
 .material-indicator {
-  margin-left: 16px;
+  margin-left: 20px;
+  position: relative;
+  z-index: 2;
 }
 
 .selection-check {
-  width: 28px;
-  height: 28px;
-  border: 2px solid #e5e5ea;
+  width: 36px;
+  height: 36px;
+  border: 3px solid #e5e5ea;
   border-radius: 50%;
   display: flex;
   align-items: center;
   justify-content: center;
-  transition: all 0.3s ease;
+  transition: all 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+  position: relative;
+  overflow: hidden;
+}
+
+.selection-check::before {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 0;
+  height: 0;
+  background: var(--material-color);
+  border-radius: 50%;
+  transition: all 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+  transform: translate(-50%, -50%);
 }
 
 .material-card.selected .selection-check {
-  background: #007aff;
-  border-color: #007aff;
+  background: var(--material-color);
+  border-color: var(--material-color);
+  transform: scale(1.1);
+}
+
+.material-card.selected .selection-check::before {
+  width: 100%;
+  height: 100%;
+}
+
+.check-animation {
+  position: relative;
+  z-index: 3;
 }
 
 .selection-check svg {
-  width: 16px;
-  height: 16px;
+  width: 18px;
+  height: 18px;
   fill: white;
   opacity: 0;
-  transition: opacity 0.3s ease;
+  transition: all 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+  transform: scale(0) rotate(-45deg);
 }
 
 .material-card.selected .selection-check svg {
   opacity: 1;
+  transform: scale(1) rotate(0deg);
+}
+
+.selection-ripple {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 20px;
+  height: 20px;
+  background: var(--material-color);
+  border-radius: 50%;
+  transform: translate(-50%, -50%) scale(0);
+  opacity: 0;
+  transition: all 0.6s cubic-bezier(0.16, 1, 0.3, 1);
+  pointer-events: none;
+  z-index: 1;
+}
+
+.material-card:not(.selected):hover {
+  border-color: rgba(0, 122, 255, 0.4);
+  transform: translateY(-2px);
+  box-shadow: 0 8px 30px rgba(0, 122, 255, 0.1);
+}
+
+.material-card:not(.selected):hover .material-icon {
+  transform: scale(1.05);
+}
+
+.material-card:not(.selected):hover .selection-check {
+  border-color: rgba(0, 122, 255, 0.4);
+  background: rgba(0, 122, 255, 0.05);
 }
 
 .action-section {
@@ -1471,6 +1725,35 @@ export default {
   
   .materials-grid {
     grid-template-columns: 1fr;
+    gap: 16px;
+  }
+  
+  .material-card {
+    padding: 20px;
+  }
+  
+  .material-visual {
+    margin-right: 16px;
+  }
+  
+  .material-icon {
+    width: 40px;
+    height: 40px;
+  }
+  
+  .material-icon svg {
+    width: 20px;
+    height: 20px;
+  }
+  
+  .material-sample {
+    width: 28px;
+    height: 6px;
+  }
+  
+  .selection-check {
+    width: 32px;
+    height: 32px;
   }
   
   .measurement-point {
