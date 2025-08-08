@@ -75,12 +75,24 @@
           v-for="(plate, index) in plates" 
           :key="plate.id"
           class="measurement-box"
-          :class="{ 'dragging': draggedIndex === index, 'animated': animateChanges }"
-          draggable="true"
-          @dragstart="handleDragStart(index, $event)"
-          @dragover="handleDragOver($event)"
-          @drop="handleDrop(index, $event)"
-          @dragend="handleDragEnd"
+          :class="{ 
+            'dragging': draggedIndex === index || (touchDragState && touchDragState.draggedIndex === index), 
+            'animated': animateChanges,
+            'touch-dragging': touchDragState && touchDragState.isDragging && touchDragState.draggedIndex === index
+          }"
+          :draggable="!isMobile"
+          @dragstart="!isMobile && handleDragStart(index, $event)"
+          @dragover="!isMobile && handleDragOver($event)"
+          @drop="!isMobile && handleDrop(index, $event)"
+          @dragend="!isMobile && handleDragEnd"
+          @touchstart="isMobile && handleTouchDragStart(index, $event)"
+          @touchmove="isMobile && handleTouchDragMove($event)"
+          @touchend="isMobile && handleTouchDragEnd($event)"
+          :style="touchDragState && touchDragState.isDragging && touchDragState.draggedIndex === index ? {
+            transform: `translateY(${touchDragState.currentY - touchDragState.startY}px)`,
+            zIndex: 1000,
+            pointerEvents: 'none'
+          } : {}"
         >
           <div class="plate-row" :class="{ 'first-plate': index === 0 }">
             <div class="plate-number" :class="{ active: index === activePlateIndex }">
@@ -186,7 +198,8 @@ export default {
       isDragging: false,
       lastMouseX: 0,
       lastMouseY: 0,
-      touches: []
+      touches: [],
+      isMobile: false
     }
   },
   computed: {
@@ -212,6 +225,7 @@ export default {
     }
   },
   mounted() {
+    this.detectMobile();
     this.detectLocale();
     this.loadFromMemory();
     this.initializeCanvas();
@@ -219,11 +233,21 @@ export default {
     
     this.resizeHandler = this.throttle(this.handleResize, 100);
     window.addEventListener('resize', this.resizeHandler);
+    window.addEventListener('orientationchange', () => {
+      setTimeout(() => {
+        this.handleResize();
+      }, 100);
+    });
   },
   beforeUnmount() {
     window.removeEventListener('resize', this.resizeHandler);
+    window.removeEventListener('orientationchange', this.handleResize);
   },
   methods: {
+    detectMobile() {
+      this.isMobile = window.innerWidth <= 768;
+    },
+
     throttle(func, limit) {
       let inThrottle;
       return function() {
@@ -481,17 +505,129 @@ export default {
         return;
       }
 
+      this.performDrop(this.draggedIndex, targetIndex);
+    },
+
+    handleDragEnd() {
+      this.draggedIndex = null;
+    },
+
+    handleTouchDragStart(index, event) {
+      if (this.plates.length <= 1) return;
+      
+      event.stopPropagation();
+      
+      const touch = event.touches[0];
+      const element = event.currentTarget;
+      
+      if (!this.touchDragState) {
+        this.touchDragState = {
+          isDragging: false,
+          draggedIndex: null,
+          startY: 0,
+          currentY: 0,
+          dragElement: null,
+          placeholder: null
+        };
+      }
+      
+      this.touchDragState.isDragging = true;
+      this.touchDragState.draggedIndex = index;
+      this.touchDragState.startY = touch.clientY;
+      this.touchDragState.currentY = touch.clientY;
+      this.touchDragState.dragElement = element;
+      this.touchDragState.placeholder = null;
+      
+      element.style.transition = 'none';
+      element.style.opacity = '0.8';
+      
+      document.body.style.overflow = 'hidden';
+    },
+
+    handleTouchDragMove(event) {
+      if (!this.touchDragState || !this.touchDragState.isDragging) return;
+      
+      event.preventDefault();
+      event.stopPropagation();
+      
+      const touch = event.touches[0];
+      this.touchDragState.currentY = touch.clientY;
+      
+      const elements = document.elementsFromPoint(touch.clientX, touch.clientY);
+      const measurementBox = elements.find(el => el.classList.contains('measurement-box'));
+      
+      if (measurementBox && measurementBox !== this.touchDragState.dragElement) {
+        const allBoxes = Array.from(document.querySelectorAll('.measurement-box'));
+        const targetIndex = allBoxes.indexOf(measurementBox);
+        
+        if (targetIndex !== -1 && targetIndex !== this.touchDragState.draggedIndex) {
+          measurementBox.style.borderTop = '3px solid #4caf50';
+        }
+      }
+      
+      const allBoxes = Array.from(document.querySelectorAll('.measurement-box'));
+      allBoxes.forEach((box, idx) => {
+        if (box !== measurementBox && idx !== this.touchDragState.draggedIndex) {
+          box.style.borderTop = '';
+        }
+      });
+    },
+
+    handleTouchDragEnd(event) {
+      if (!this.touchDragState || !this.touchDragState.isDragging) return;
+      
+      event.preventDefault();
+      event.stopPropagation();
+      
+      const touch = event.changedTouches[0];
+      const elements = document.elementsFromPoint(touch.clientX, touch.clientY);
+      const measurementBox = elements.find(el => el.classList.contains('measurement-box'));
+      
+      if (measurementBox && measurementBox !== this.touchDragState.dragElement) {
+        const allBoxes = Array.from(document.querySelectorAll('.measurement-box'));
+        const targetIndex = allBoxes.indexOf(measurementBox);
+        
+        if (targetIndex !== -1 && targetIndex !== this.touchDragState.draggedIndex) {
+          this.performDrop(this.touchDragState.draggedIndex, targetIndex);
+        }
+      }
+      
+      if (this.touchDragState.dragElement) {
+        this.touchDragState.dragElement.style.transition = '';
+        this.touchDragState.dragElement.style.opacity = '';
+      }
+      
+      const allBoxes = Array.from(document.querySelectorAll('.measurement-box'));
+      allBoxes.forEach(box => {
+        box.style.borderTop = '';
+      });
+      
+      this.touchDragState = {
+        isDragging: false,
+        draggedIndex: null,
+        startY: 0,
+        currentY: 0,
+        dragElement: null,
+        placeholder: null
+      };
+      
+      document.body.style.overflow = '';
+    },
+
+    performDrop(sourceIndex, targetIndex) {
+      if (sourceIndex === targetIndex) return;
+      
       this.animateChanges = true;
       
-      const draggedPlate = this.plates[this.draggedIndex];
-      this.plates.splice(this.draggedIndex, 1);
+      const draggedPlate = this.plates[sourceIndex];
+      this.plates.splice(sourceIndex, 1);
       this.plates.splice(targetIndex, 0, draggedPlate);
       
-      if (this.activePlateIndex === this.draggedIndex) {
+      if (this.activePlateIndex === sourceIndex) {
         this.activePlateIndex = targetIndex;
-      } else if (this.draggedIndex < this.activePlateIndex && targetIndex >= this.activePlateIndex) {
+      } else if (sourceIndex < this.activePlateIndex && targetIndex >= this.activePlateIndex) {
         this.activePlateIndex--;
-      } else if (this.draggedIndex > this.activePlateIndex && targetIndex <= this.activePlateIndex) {
+      } else if (sourceIndex > this.activePlateIndex && targetIndex <= this.activePlateIndex) {
         this.activePlateIndex++;
       }
       
@@ -501,10 +637,6 @@ export default {
       setTimeout(() => {
         this.animateChanges = false;
       }, 300);
-    },
-
-    handleDragEnd() {
-      this.draggedIndex = null;
     },
 
     loadFromMemory() {
@@ -695,17 +827,26 @@ export default {
     },
 
     initializeCanvas() {
+      this.detectMobile();
       this.handleResize();
     },
 
     handleResize() {
+      this.detectMobile();
       const container = this.$refs.canvasWrapper;
       if (container) {
-        const containerWidth = container.clientWidth - 10;
-        const containerHeight = container.clientHeight - 140;
+        let containerWidth, containerHeight;
         
-        this.canvasWidth = containerWidth;
-        this.canvasHeight = containerHeight;
+        if (this.isMobile) {
+          containerWidth = window.innerWidth - 20;
+          containerHeight = Math.max(250, window.innerHeight * 0.35 - 60);
+        } else {
+          containerWidth = container.clientWidth - 10;
+          containerHeight = container.clientHeight - 140;
+        }
+        
+        this.canvasWidth = Math.max(containerWidth, 300);
+        this.canvasHeight = Math.max(containerHeight, 200);
         
         this.$nextTick(() => {
           this.renderCanvas();
@@ -729,8 +870,8 @@ export default {
 
     createFallbackImage() {
       const canvas = document.createElement('canvas');
-      canvas.width = 800;
-      canvas.height = 400;
+      canvas.width = 1200;
+      canvas.height = 800;
       const ctx = canvas.getContext('2d');
       
       const gradient = ctx.createLinearGradient(0, 0, 0, canvas.height);
@@ -773,7 +914,13 @@ export default {
       const spacing = this.plates.length > 1 ? (this.plates.length - 1) * 1 : 0;
       const scaleX = (canvas.width - spacing) / totalWidthMetric;
       const scaleY = canvas.height / maxHeightMetric;
-      const scale = Math.min(scaleX, scaleY) * 0.9;
+      
+      let scale;
+      if (this.isMobile) {
+        scale = Math.min(scaleX, scaleY) * 0.95;
+      } else {
+        scale = Math.min(scaleX, scaleY) * 0.9;
+      }
       
       const totalRenderedWidth = totalWidthMetric * scale + spacing;
       const maxRenderedHeight = maxHeightMetric * scale;
@@ -795,7 +942,7 @@ export default {
         this.renderPlateSegment(ctx, currentX, y, plateWidthPx, plateHeightPx, plate, index, plateWidthMetric, plateHeightMetric);
         
         ctx.fillStyle = index === this.activePlateIndex ? '#4caf50' : '#666';
-        ctx.font = '14px sans-serif';
+        ctx.font = this.isMobile ? '12px sans-serif' : '14px sans-serif';
         ctx.textAlign = 'center';
         ctx.fillText(`${index + 1}`, currentX + plateWidthPx/2, y - 8);
         
@@ -862,6 +1009,9 @@ export default {
       const correctedY = FORCE_BOTTOM_Y - height;
       
       ctx.save();
+      
+      ctx.imageSmoothingEnabled = true;
+      ctx.imageSmoothingQuality = 'high';
       
       try {
         if (shouldMirror) {
@@ -966,6 +1116,8 @@ export default {
   transition: transform 0.1s ease-out;
   user-select: none;
   touch-action: none;
+  max-width: 100%;
+  max-height: 100%;
 }
 
 .zoom-controls {
@@ -1158,6 +1310,13 @@ export default {
   display: flex;
   flex-direction: column;
   gap: 2rem;
+}
+
+.measurement-box.touch-dragging {
+  opacity: 0.8;
+  transform: scale(1.02);
+  box-shadow: 0 8px 32px rgba(0,0,0,0.2);
+  transition: none;
 }
 
 .measurement-box {
@@ -1395,17 +1554,40 @@ export default {
     height: 40vh;
     padding: 1rem;
     flex-shrink: 0;
+    background-color: #f0f0f0;
     padding-left: 0px;
+  }
+
+  .canvas-container {
+    height: 100%;
+    width: 100%;
+    gap: 0.75rem;
+    padding: 0;
   }
 
   .canvas-wrapper {
     flex: 1;
-    min-height: 200px;
+    width: 100%;
+    height: 100%;
+    border-radius: 8px;
+    background: #f5f5f5;
+    overflow: hidden;
+  }
+
+  .preview-canvas {
+    width: 100% !important;
+    height: auto !important;
+    max-width: 100%;
+    max-height: 100%;
+    object-fit: contain;
+    border-radius: 4px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.1);
   }
 
   .zoom-controls {
     padding: 0.4rem;
     gap: 0.4rem;
+    flex-shrink: 0;
   }
 
   .zoom-btn {
@@ -1422,6 +1604,15 @@ export default {
   .reset-btn {
     padding: 0.4rem 0.8rem;
     font-size: 0.75rem;
+  }
+
+  .export-controls {
+    flex-shrink: 0;
+  }
+
+  .export-btn {
+    padding: 0.6rem 1.2rem;
+    font-size: 0.85rem;
   }
   
   .main-content {
@@ -1482,6 +1673,17 @@ export default {
     width: 100%;
     box-sizing: border-box;
     flex-shrink: 0;
+    cursor: grab;
+    user-select: none;
+    -webkit-user-select: none;
+    touch-action: manipulation;
+  }
+  
+  .measurement-box.touch-dragging {
+    cursor: grabbing;
+    transform: scale(1.02);
+    box-shadow: 0 8px 32px rgba(0,0,0,0.2);
+    z-index: 1000;
   }
   
   .plate-row {
@@ -1677,6 +1879,14 @@ export default {
   .reset-btn {
     padding: 0.3rem 0.6rem;
     font-size: 0.7rem;
+  }
+
+  .canvas-wrapper {
+    border-radius: 6px;
+  }
+
+  .preview-canvas {
+    border-radius: 3px;
   }
 }
 </style>
