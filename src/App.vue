@@ -1190,7 +1190,7 @@ export default {
 }
 
 .debug-info {
-  margin-top: 2rem;
+  margin-top: 1rem;
   padding: 1rem;
   background-color: #f8f9fa;
   border-radius: 4px;
