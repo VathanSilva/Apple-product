@@ -1,1852 +1,1679 @@
 <template>
-  <div class="apple-product-page">
-
-    <section class="product-showcase">
-      <div class="showcase-container">
-        <div class="gallery-wrapper">
-          <div class="image-gallery" ref="mainCarousel">
-            <div class="gallery-viewport">
-              <div class="gallery-track" ref="carouselTrack" :style="{ transform: `translateX(-${currentSlide * 100}%)` }">
-                <div 
-                  v-for="(image, index) in productImages" 
-                  :key="index"
-                  class="gallery-slide" 
-                  :data-slide-index="index"
-                >
-                  <div class="image-container">
-                    <img :src="image.url" :alt="image.alt" />
-                    <div 
-                      class="measurement-overlay" 
-                      :class="{ 'active': measurementMode }"
-                      :data-slide="index"
-                      @click="handleOverlayClick"
-                      @touchstart="handleOverlayClick"
-                    >
-                      <div
-                        v-for="circle in getCirclesForSlide(index)"
-                        :key="circle.id"
-                        class="measurement-point"
-                        :class="{ 
-                          'selected': selectedCircle?.id === circle.id,
-                          'dragging': draggedCircle?.id === circle.id 
-                        }"
-                        :style="{ left: circle.x + 'px', top: circle.y + 'px' }"
-                        @mousedown="handleCircleMouseDown($event, circle)"
-                        @touchstart="handleCircleMouseDown($event, circle)"
-                        @click.stop="selectCircle(circle)"
-                      >
-                        <div class="point-inner">
-                          <span class="point-label">{{ circle.id }}</span>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-            
-            <button class="gallery-nav prev" @click="prevSlide" :disabled="currentSlide === 0">
-              <svg viewBox="0 0 24 24">
-                <path d="M15.41 7.41L14 6l-6 6 6 6 1.41-1.41L10.83 12z"/>
-              </svg>
-            </button>
-            <button class="gallery-nav next" @click="nextSlide" :disabled="currentSlide === totalSlides - 1">
-              <svg viewBox="0 0 24 24">
-                <path d="M8.59 16.59L10 18l6-6-6-6-1.41 1.41L13.17 12z"/>
-              </svg>
-            </button>
-            
-            <div class="gallery-thumbnails">
-              <div
-                v-for="(image, index) in productImages"
-                :key="index"
-                class="thumbnail"
-                :class="{ active: index === currentSlide }"
-                @click="goToSlide(index)"
-              >
-                <img :src="image.url" :alt="image.alt" />
-              </div>
-            </div>
-          </div>
+  <div class="app-container">
+    <div class="sidebar">
+      <div class="canvas-container">
+        <div class="canvas-wrapper" ref="canvasWrapper">
+          <canvas 
+            ref="previewCanvas" 
+            class="preview-canvas"
+            :width="canvasWidth"
+            :height="canvasHeight"
+            @wheel="handleWheel"
+            @mousedown="handleMouseDown"
+            @mousemove="handleMouseMove"
+            @mouseup="handleMouseUp"
+            @mouseleave="handleMouseUp"
+            @touchstart="handleTouchStart"
+            @touchmove="handleTouchMove"
+            @touchend="handleTouchEnd"
+            :style="{ 
+              transform: `translate(${panX}px, ${panY}px) scale(${zoomLevel})`,
+              cursor: isDragging ? 'grabbing' : 'grab'
+            }"
+          ></canvas>
         </div>
         
-        <div class="product-config">
-          <div class="product-info">
-            <h1 class="product-title">{{ product.title }}</h1>
-            <p class="product-description">{{ product.description }}</p>
-            <div class="product-price">From ${{ product.price }}</div>
-          </div>
+        <div class="zoom-controls">
+          <button @click="zoomOut" class="zoom-btn" :disabled="zoomLevel <= 0.2">−</button>
+          <span class="zoom-level">{{ Math.round(zoomLevel * 100) }}%</span>
+          <button @click="zoomIn" class="zoom-btn" :disabled="zoomLevel >= 3">+</button>
+          <button @click="resetZoom" class="reset-btn">Reset</button>
+        </div>
+        
+        <div class="export-controls">
+          <button @click="downloadPreview" class="export-btn">
+            📥 Download Preview
+          </button>
+        </div>
+      </div>
+    </div>
 
-          <div class="config-section measurement-section">
-            <div class="section-header">
-              <h2 class="section-title">Precision Measurement</h2>
-              <p class="section-description">Mark and measure specific points on your product with pixel-perfect accuracy</p>
-            </div>
-            
-            <div class="control-group">
-              <div class="toggle-control">
-                <label class="toggle-label">
-                  <span class="label-text">Measurement Mode</span>
-                  <div 
-                    class="toggle-switch" 
-                    :class="{ active: measurementMode }"
-                    @click="toggleMeasurementMode"
-                  >
-                    <div class="toggle-slider">
-                      <div class="toggle-icon">
-                        <svg v-if="!measurementMode" viewBox="0 0 24 24">
-                          <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/>
-                        </svg>
-                        <svg v-else viewBox="0 0 24 24">
-                          <path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/>
-                        </svg>
-                      </div>
-                    </div>
-                  </div>
-                </label>
-              </div>
-            </div>
-            
-            <div class="coordinate-panel" :class="{ disabled: !measurementMode }">
-              <h3 class="panel-title">Coordinate Input</h3>
-              <div class="coordinate-grid">
-                <div class="input-field">
-                  <label class="field-label">X Position</label>
-                  <input 
-                    type="number" 
-                    class="field-input" 
-                    v-model.number="xInput" 
-                    placeholder="0" 
-                    min="0"
-                    :disabled="!measurementMode"
-                    @input="updateFromInputs"
-                  >
-                  <span class="field-unit">px</span>
-                </div>
-                <div class="input-field">
-                  <label class="field-label">Y Position</label>
-                  <input 
-                    type="number" 
-                    class="field-input" 
-                    v-model.number="yInput" 
-                    placeholder="0" 
-                    min="0"
-                    :disabled="!measurementMode"
-                    @input="updateFromInputs"
-                  >
-                  <span class="field-unit">px</span>
-                </div>
-              </div>
-              <button 
-                class="action-button primary" 
-                :disabled="!measurementMode"
-                @click="addCircleFromInputs"
-              >
-                <svg viewBox="0 0 24 24" fill="white">
-                  <path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/>
-                </svg>
-                Add Measurement Point
-              </button>
-            </div>
-            
-            <div class="points-panel" v-if="Object.keys(circlesBySlide).length > 0">
-              <h3 class="panel-title">Measurement Points</h3>
-              <div class="points-list">
-                <template v-for="slideIndex in Object.keys(circlesBySlide)" :key="slideIndex">
-                  <div class="slide-group">
-                    <div class="slide-header">
-                      <span class="slide-label">Image {{ parseInt(slideIndex) + 1 }}</span>
-                      <span class="point-count">{{ circlesBySlide[slideIndex].length }} points</span>
-                    </div>
-                    <div class="points-grid">
-                      <div
-                        v-for="circle in circlesBySlide[slideIndex]"
-                        :key="circle.id"
-                        class="point-item"
-                        :class="{ selected: selectedCircle?.id === circle.id }"
-                        @click="selectCircle(circle)"
-                      >
-                        <div class="point-info">
-                          <div class="point-id">Point {{ circle.id }}</div>
-                          <div class="point-coords">
-                            {{ Math.round(circle.x) }}, {{ Math.round(circle.y) }}px
-                          </div>
-                          <div class="point-percentage">
-                            {{ getPercentageCoords(circle).x }}%, {{ getPercentageCoords(circle).y }}%
-                          </div>
-                        </div>
-                        <button class="delete-point" @click.stop="deleteCircle(circle.id)">
-                          <svg viewBox="0 0 24 24">
-                            <path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/>
-                          </svg>
-                        </button>
-                      </div>
-                    </div>
-                  </div>
-                </template>
-              </div>
-            </div>
-          </div>
+    <div class="main-content">
+      <div class="header">
+        <h1 class="title">Maße. Eingeben.</h1>
+        
+        <div class="controls-row">
+          <button 
+            @click="toggleUnits" 
+            class="unit-toggle-btn"
+            :class="{ active: isMetric }"
+          >
+            {{ isMetric ? 'cm' : 'in' }}
+          </button>
           
-          <div class="config-section material-section">
-            <div class="section-header">
-              <h2 class="section-title">Material Selection</h2>
-              <p class="section-description">Choose from our premium materials crafted for performance and durability</p>
-            </div>
-            
-            <div class="materials-grid">
-              <div
-                v-for="(material, index) in materials"
-                :key="material.id"
-                class="material-card"
-                :class="{ 
-                  selected: selectedMaterial === material.id,
-                  'animate-in': selectedMaterial === material.id
-                }"
-                :style="{ 
-                  '--material-color': material.color,
-                  '--material-gradient': material.gradient,
-                  '--animation-delay': index * 0.1 + 's'
-                }"
-                @click="selectMaterial(material.id)"
-              >
-                <div class="material-visual">
-                  <div class="material-icon">
-                    <svg viewBox="0 0 24 24">
-                      <path :d="material.icon"/>
-                    </svg>
-                  </div>
-                  <div class="material-sample"></div>
-                </div>
-                <div class="material-content">
-                  <h3 class="material-name">{{ material.name }}</h3>
-                  <p class="material-description">{{ material.description }}</p>
-                </div>
-                <div class="material-indicator">
-                  <div class="selection-check">
-                    <div class="check-animation">
-                      <svg viewBox="0 0 24 24">
-                        <path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/>
-                      </svg>
-                    </div>
-                  </div>
-                </div>
-                <div class="selection-ripple"></div>
-              </div>
-            </div>
-          </div>
-          
-          <div class="action-section">
-            <button class="action-button large primary" @click="submitData">
-              <svg viewBox="0 0 24 24" fill="white">
-                <path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/>
-              </svg>
-              Submit Configuration
-            </button>
-            <button class="action-button large secondary" @click="addToCart">
-              <svg viewBox="0 0 24 24">
-                <path d="M7 18c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2zM1 2v2h2l3.6 7.59-1.35 2.45c-.16.28-.25.61-.25.96 0 1.1.9 2 2 2h12v-2H7.42c-.14 0-.25-.11-.25-.25l.03-.12L8.1 13h7.45c.75 0 1.41-.41 1.75-1.03L21.7 4H5.21l-.94-2H1zm16 16c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2z"/>
-              </svg>
-              Add to Cart
+          <div class="upload-section">
+            <input 
+              type="file" 
+              ref="imageUpload" 
+              @change="handleImageUpload" 
+              accept="image/*"
+              style="display: none"
+            />
+            <button @click="$refs.imageUpload.click()" class="upload-image-btn">
+              🖼️ Upload Image
             </button>
           </div>
         </div>
       </div>
-    </section>
+
+      <div v-if="alertMessage" class="alert">
+        {{ alertMessage }}
+      </div>
+
+      <div class="measurement-section">
+        <div 
+          v-for="(plate, index) in plates" 
+          :key="plate.id"
+          class="measurement-box"
+          :class="{ 'dragging': draggedIndex === index, 'animated': animateChanges }"
+          draggable="true"
+          @dragstart="handleDragStart(index, $event)"
+          @dragover="handleDragOver($event)"
+          @drop="handleDrop(index, $event)"
+          @dragend="handleDragEnd"
+        >
+          <div class="plate-row" :class="{ 'first-plate': index === 0 }">
+            <div class="plate-number" :class="{ active: index === activePlateIndex }">
+              {{ index + 1 }}
+            </div>
+            <div class="plate-inputs">
+              <input 
+                type="text" 
+                v-model="plate.widthInput"
+                @input="validateAndUpdatePlate(index, 'width', $event.target.value)"
+                @blur="formatInput(index, 'width')"
+                class="dimension-input" 
+                :class="{ error: plate.widthError }"
+                inputmode="decimal"
+              />
+              <span class="unit-text">{{ currentUnit }}</span>
+              <span class="multiply-symbol">×</span>
+              <input 
+                type="text" 
+                v-model="plate.heightInput"
+                @input="validateAndUpdatePlate(index, 'height', $event.target.value)"
+                @blur="formatInput(index, 'height')"
+                class="dimension-input"
+                :class="{ error: plate.heightError }"
+                inputmode="decimal"
+              />
+              <span class="unit-text">{{ currentUnit }}</span>
+              <button 
+                v-if="plates.length > 1"
+                @click="deletePlate(index)"
+                class="remove-btn"
+                :aria-label="'Delete plate ' + (index + 1)"
+              >−</button>
+            </div>
+          </div>
+          
+          <div v-if="index !== 0" class="dimension-labels">
+            <div class="label-group">
+              <span class="label-title">Breite</span>
+              <span class="label-range">{{ widthRange }}</span>
+            </div>
+            <div class="label-group">
+              <span class="label-title">Höhe</span>
+              <span class="label-range">{{ heightRange }}</span>
+            </div>
+          </div>
+
+          <div v-if="index !== 0 && isMetric" style="gap: 9.6rem;" class="conversion-info">
+            <span class="conversion-value">{{ (plate.width * 10).toFixed(0) }} mm</span>
+            <span class="conversion-value">{{ (plate.height * 10).toFixed(0) }} mm</span>
+          </div>
+          <div v-if="index !== 0 && !isMetric" class="conversion-info">
+            <span class="conversion-value">{{ convertToMetric(plate.width).toFixed(1) }} cm</span>
+            <span class="conversion-value">{{ convertToMetric(plate.height).toFixed(1) }} cm</span>
+          </div>
+        </div>
+
+        <button 
+          v-if="plates.length < 10"
+          @click="addPlate"
+          class="add-plate-btn"
+          :class="{ 'animated': animateChanges }"
+        >
+          Rückwand hinzufügen +
+        </button>
+
+        <div class="debug-info">
+          <p>Total Width: {{ totalWidth.toFixed(1) }}{{ currentUnit }}</p>
+          <p>Image Extension: {{ totalWidth > (isMetric ? 300 : 118) ? 'Mirrored' : 'Original' }}</p>
+          <p>Image Status: {{ baseImage ? '✅ Loaded' : '❌ Loading...' }}</p>
+          <p v-if="baseImage">Image Size: {{ baseImage.width }}x{{ baseImage.height }}px</p>
+          <p>Active Plate: {{ activePlateIndex + 1 }}</p>
+          <p>Units: {{ isMetric ? 'Metric (cm)' : 'Imperial (inches)' }}</p>
+          <p>Zoom: {{ Math.round(zoomLevel * 100) }}%</p>
+        </div>
+      </div>
+    </div>
   </div>
 </template>
 
 <script>
-import { computed, onMounted, onUnmounted, reactive, ref } from 'vue'
-
 export default {
-  name: 'AppleProductPage',
-  setup() {
-    const currentSlide = ref(0)
-    const measurementMode = ref(false)
-    const circles = ref([])
-    const selectedMaterial = ref(null)
-    const selectedCircle = ref(null)
-    const draggedCircle = ref(null)
-    const circleCounter = ref(0)
-    const xInput = ref('')
-    const yInput = ref('')
-    const isDragging = ref(false)
-    
-    const mainCarousel = ref(null)
-    const carouselTrack = ref(null)
-    
-    const CIRCLE_RADIUS = 25 
-    
-    const product = reactive({
-      title: 'iPhone 16 Pro',
-      description: 'Your new iPhone 16 Pro Max. Just the way you want it.',
-      price: 1199
-    })
-    
-    const productImages = ref([
-      {
-        url: 'https://store.storeimages.cdn-apple.com/1/as-images.apple.com/is/iphone-16-pro-finish-select-202409-6-9inch_GEO_US?wid=5120&hei=2880&fmt=webp&qlt=90&.v=eUdsd0dIb3VUOXdtWkY0VFUwVE8vbEdkZHNlSjBQRklnaFB2d3I5MW94NUZqUFNQc3E5VDh2SEx1ZlJpSjNkR0FOL1haWCt6TDJ0UWlLb09XajVNdENYR1ZZZnEyMVlVQUliTThGMjNyaFFDdURYTkVwaGQzbSsxZFlGem8yMnNkU3dydy9HM2lySFhSSEZkUTBtb0tR&traceId=1',
-        alt: 'iPhone 16 Pro'
+  name: 'GardenDesign',
+  data() {
+    return {
+      plates: [],
+      activePlateIndex: 0,
+      alertMessage: '',
+      canvasWidth: 400,
+      canvasHeight: 300,
+      baseImage: null,
+      locale: 'de',
+      isMetric: true,
+      draggedIndex: null,
+      animateChanges: false,
+      persistentData: {
+        plates: [],
+        isMetric: true
       },
-      {
-        url: 'https://store.storeimages.cdn-apple.com/1/as-images.apple.com/is/iphone-16-pro-finish-select-202409-6-9inch_AV1?wid=5120&hei=2880&fmt=webp&qlt=90&.v=eUdsd0dIb3VUOXdtWkY0VFUwVE8vbEdkZHNlSjBQRklnaFB2d3I5MW94NENxZ2Y2UndFVkhoZG1DQ0NWVTFWa2xjZnhHRHJyenVmME5KTm9Sd1ZaU3NqbWRhTGpRM2xxVWJRWUhSaDlCQ3FBdHR2dFhwdGUzbmtydVhBa0gxTE5GQlRRRytmTHd2bTlDU2RZMUtqVTRR&traceId=1',
-        alt: 'iPhone 16 Pro'
-      },
-      {
-        url: 'https://store.storeimages.cdn-apple.com/1/as-images.apple.com/is/iphone-16-pro-finish-select-202409-6-9inch_AV2?wid=5120&hei=2880&fmt=webp&qlt=90&.v=eUdsd0dIb3VUOXdtWkY0VFUwVE8vbEdkZHNlSjBQRklnaFB2d3I5MW94NUYwNEIwcFZiSzRpTGtjOVdwSCt4N2xjZnhHRHJyenVmME5KTm9Sd1ZaU3NqbWRhTGpRM2xxVWJRWUhSaDlCQ29INlpMOUhoWTNUbUIrQVc3a2xXUGdRRXB6YUhNcms5Z1pYZXdkbUhocnBn&traceId=1',
-        alt: 'iPhone 16 Pro'
-      },
-      {
-        url: 'https://store.storeimages.cdn-apple.com/1/as-images.apple.com/is/iphone-16-pro-finish-select-202409-6-9inch_AV3?wid=5120&hei=2880&fmt=webp&qlt=90&.v=eUdsd0dIb3VUOXdtWkY0VFUwVE8vbEdkZHNlSjBQRklnaFB2d3I5MW94NmMyUjc1U3JwZ2VscGtUR0tSYnFmSGxjZnhHRHJyenVmME5KTm9Sd1ZaU3NqbWRhTGpRM2xxVWJRWUhSaDlCQ294WmV3am9pcVFFaG9jVWxZNFpSejdsWG55WFNZREIrcHRwdlRvMGw2S3BR&traceId=1',
-        alt: 'iPhone 16 Pro'
+      zoomLevel: 1,
+      panX: 0,
+      panY: 0,
+      isDragging: false,
+      lastMouseX: 0,
+      lastMouseY: 0,
+      touches: []
+    }
+  },
+  computed: {
+    totalWidth() {
+      return this.plates.reduce((sum, plate) => sum + plate.width, 0);
+    },
+    currentUnit() {
+      return this.isMetric ? 'cm' : 'in';
+    },
+    widthRange() {
+      if (this.isMetric) {
+        return '20 - 300 cm';
+      } else {
+        return '8 - 118 in';
       }
-    ])
-    
-    const materials = ref([
-      {
-        id: 'aluminum',
-        name: 'Premium Aluminum',
-        description: 'Lightweight aerospace-grade aluminum with anodized finish for exceptional durability and style.',
-        color: '#2C2C2C',
-        gradient: 'linear-gradient(135deg, #C0C0C0, #E8E8E8)',
-        icon: 'M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8z'
-      },
-      {
-        id: 'steel',
-        name: 'Stainless Steel',
-        description: 'Medical-grade stainless steel offering superior strength and corrosion resistance.',
-        color: '#2C2C2C',
-        gradient: 'linear-gradient(135deg, #B8C5D1, #D6E3F0)',
-        icon: 'M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z'
-      },
-      {
-        id: 'titanium',
-        name: 'Titanium Alloy',
-        description: 'Ultra-lightweight titanium alloy with unmatched strength-to-weight ratio.',
-        color: '#2C2C2C',
-        gradient: 'linear-gradient(135deg, #A0A0A0, #C8C8C8)',
-        icon: 'M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 17.93c-3.94-.49-7-3.85-7-7.93 0-.62.08-1.21.21-1.79L9 15v1c0 1.1.9 2 2 2v1.93zm6.9-2.54c-.26-.81-1-1.39-1.9-1.39h-1v-3c0-.55-.45-1-1-1H8v-2h2c.55 0 1-.45 1-1V7h2c1.1 0 2-.9 2-2v-.41c2.93 1.19 5 4.06 5 7.41 0 2.08-.8 3.97-2.1 5.39z'
-      },
-      {
-        id: 'carbon-fiber',
-        name: 'Carbon Fiber',
-        description: 'Advanced carbon fiber composite offering maximum strength with minimal weight.',
-        color: '#2C2C2C',
-        gradient: 'linear-gradient(135deg, #2C2C2C, #4A4A4A)',
-        icon: 'M20 4H4c-1.11 0-1.99.89-1.99 2L2 18c0 1.11.89 2 2 2h16c1.11 0 2-.89 2-2V6c0-1.11-.89-2-2-2zm0 14H4V8h16v10z'
-      },
-      {
-        id: 'ceramic',
-        name: 'Advanced Ceramic',
-        description: 'Ultra-premium ceramic finish with scratch-resistant properties and refined aesthetics.',
-        color: '#2C2C2C',
-        gradient: 'linear-gradient(135deg, #B8C5D1, #D6E3F0)',
-        icon: 'M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z'
+    },
+    heightRange() {
+      if (this.isMetric) {
+        return '30 - 128 cm';
+      } else {
+        return '12 - 50 in';
       }
-    ])
+    }
+  },
+  mounted() {
+    this.detectLocale();
+    this.loadFromMemory();
+    this.initializeCanvas();
+    this.loadImage();
     
-    const totalSlides = computed(() => productImages.value.length)
-    
-    const circlesBySlide = computed(() => {
-      const grouped = {}
-      circles.value.forEach(circle => {
-        if (!grouped[circle.slideIndex]) {
-          grouped[circle.slideIndex] = []
-        }
-        grouped[circle.slideIndex].push(circle)
-      })
-      return grouped
-    })
-    
-    const getEventCoords = (event) => {
-      if (event.touches && event.touches.length > 0) {
-        return {
-          x: event.touches[0].clientX,
-          y: event.touches[0].clientY
+    this.resizeHandler = this.throttle(this.handleResize, 100);
+    window.addEventListener('resize', this.resizeHandler);
+  },
+  beforeUnmount() {
+    window.removeEventListener('resize', this.resizeHandler);
+  },
+  methods: {
+    throttle(func, limit) {
+      let inThrottle;
+      return function() {
+        const args = arguments;
+        const context = this;
+        if (!inThrottle) {
+          func.apply(context, args);
+          inThrottle = true;
+          setTimeout(() => inThrottle = false, limit);
         }
       }
-      return {
-        x: event.clientX,
-        y: event.clientY
-      }
-    }
-    
-    const constrainCoordinates = (x, y, overlayRect) => {
-      const constrainedX = Math.max(CIRCLE_RADIUS, Math.min(overlayRect.width - CIRCLE_RADIUS, x))
-      const constrainedY = Math.max(CIRCLE_RADIUS, Math.min(overlayRect.height - CIRCLE_RADIUS, y))
-      return { x: constrainedX, y: constrainedY }
-    }
-    
-    const goToSlide = (slideIndex) => {
-      currentSlide.value = slideIndex
-    }
-    
-    const nextSlide = () => {
-      if (currentSlide.value < totalSlides.value - 1) {
-        currentSlide.value++
-      }
-    }
-    
-    const prevSlide = () => {
-      if (currentSlide.value > 0) {
-        currentSlide.value--
-      }
-    }
-    
-    const toggleMeasurementMode = () => {
-      measurementMode.value = !measurementMode.value
-      if (!measurementMode.value) {
-        selectedCircle.value = null
-        xInput.value = ''
-        yInput.value = ''
-      }
-    }
-    
-    const getCirclesForSlide = (slideIndex) => {
-      return circles.value.filter(circle => circle.slideIndex === slideIndex)
-    }
-    
-    const getPercentageCoords = (circle) => {
-      const overlay = document.querySelector(`.measurement-overlay[data-slide="${circle.slideIndex}"]`)
-      if (!overlay) return { x: 0, y: 0 }
+    },
+
+    detectLocale() {
+      const userLang = navigator.language || navigator.userLanguage || 'en';
+      this.locale = userLang.startsWith('de') ? 'de' : 'en';
+      this.isMetric = userLang.startsWith('de') || userLang.startsWith('fr') || userLang.startsWith('it') || userLang.startsWith('es');
+    },
+
+    handleWheel(event) {
+      event.preventDefault();
       
-      const rect = overlay.getBoundingClientRect()
-      return {
-        x: parseFloat(((circle.x / rect.width) * 100).toFixed(1)),
-        y: parseFloat(((circle.y / rect.height) * 100).toFixed(1))
-      }
-    }
-    
-    const checkCollision = (x, y, slideIndex, excludeId = null) => {
-      const minDistance = CIRCLE_RADIUS * 2 + 8
-      return circles.value.some(circle => {
-        if (circle.id === excludeId || circle.slideIndex !== slideIndex) return false
-        const distance = Math.sqrt(Math.pow(circle.x - x, 2) + Math.pow(circle.y - y, 2))
-        return distance < minDistance
-      })
-    }
-    
-    const addCircle = (x, y, slideIndex = currentSlide.value) => {
-      const overlay = document.querySelector(`.measurement-overlay[data-slide="${slideIndex}"]`)
-      if (!overlay) return null
+      const rect = this.$refs.canvasWrapper.getBoundingClientRect();
+      const mouseX = event.clientX - rect.left;
+      const mouseY = event.clientY - rect.top;
       
-      const rect = overlay.getBoundingClientRect()
-      const constrained = constrainCoordinates(x, y, rect)
+      const zoomFactor = event.deltaY > 0 ? 0.9 : 1.1;
+      const newZoom = Math.max(0.2, Math.min(3, this.zoomLevel * zoomFactor));
       
-      if (checkCollision(constrained.x, constrained.y, slideIndex)) {
-        let found = false
-        let attempts = 0
-        const maxAttempts = 20
+      if (newZoom !== this.zoomLevel) {
+        const zoomRatio = newZoom / this.zoomLevel;
         
-        while (!found && attempts < maxAttempts) {
-          const offsetX = (Math.random() - 0.5) * 100
-          const offsetY = (Math.random() - 0.5) * 100
-          const newX = constrained.x + offsetX
-          const newY = constrained.y + offsetY
-          const newConstrained = constrainCoordinates(newX, newY, rect)
+        this.panX = mouseX - (mouseX - this.panX) * zoomRatio;
+        this.panY = mouseY - (mouseY - this.panY) * zoomRatio;
+        
+        this.zoomLevel = newZoom;
+      }
+    },
+
+    handleMouseDown(event) {
+      this.isDragging = true;
+      this.lastMouseX = event.clientX;
+      this.lastMouseY = event.clientY;
+      event.preventDefault();
+    },
+
+    handleMouseMove(event) {
+      if (!this.isDragging) return;
+      
+      const deltaX = event.clientX - this.lastMouseX;
+      const deltaY = event.clientY - this.lastMouseY;
+      
+      this.panX += deltaX;
+      this.panY += deltaY;
+      
+      this.lastMouseX = event.clientX;
+      this.lastMouseY = event.clientY;
+    },
+
+    handleMouseUp() {
+      this.isDragging = false;
+    },
+
+    handleTouchStart(event) {
+      event.preventDefault();
+      this.touches = Array.from(event.touches);
+      
+      if (this.touches.length === 1) {
+        this.isDragging = true;
+        this.lastMouseX = this.touches[0].clientX;
+        this.lastMouseY = this.touches[0].clientY;
+      } else if (this.touches.length === 2) {
+        this.isDragging = false;
+      }
+    },
+
+    handleTouchMove(event) {
+      event.preventDefault();
+      const currentTouches = Array.from(event.touches);
+      
+      if (currentTouches.length === 1 && this.isDragging) {
+        const deltaX = currentTouches[0].clientX - this.lastMouseX;
+        const deltaY = currentTouches[0].clientY - this.lastMouseY;
+        
+        this.panX += deltaX;
+        this.panY += deltaY;
+        
+        this.lastMouseX = currentTouches[0].clientX;
+        this.lastMouseY = currentTouches[0].clientY;
+      } else if (currentTouches.length === 2 && this.touches.length === 2) {
+        const prevDistance = Math.hypot(
+          this.touches[0].clientX - this.touches[1].clientX,
+          this.touches[0].clientY - this.touches[1].clientY
+        );
+        
+        const currentDistance = Math.hypot(
+          currentTouches[0].clientX - currentTouches[1].clientX,
+          currentTouches[0].clientY - currentTouches[1].clientY
+        );
+        
+        if (prevDistance > 0) {
+          const rect = this.$refs.canvasWrapper.getBoundingClientRect();
+          const centerX = (currentTouches[0].clientX + currentTouches[1].clientX) / 2 - rect.left;
+          const centerY = (currentTouches[0].clientY + currentTouches[1].clientY) / 2 - rect.top;
           
-          if (!checkCollision(newConstrained.x, newConstrained.y, slideIndex)) {
-            constrained.x = newConstrained.x
-            constrained.y = newConstrained.y
-            found = true
+          const zoomFactor = currentDistance / prevDistance;
+          const newZoom = Math.max(0.2, Math.min(3, this.zoomLevel * zoomFactor));
+          
+          if (newZoom !== this.zoomLevel) {
+            const zoomRatio = newZoom / this.zoomLevel;
+            
+            this.panX = centerX - (centerX - this.panX) * zoomRatio;
+            this.panY = centerY - (centerY - this.panY) * zoomRatio;
+            
+            this.zoomLevel = newZoom;
           }
-          attempts++
+        }
+      }
+      
+      this.touches = currentTouches;
+    },
+
+    handleTouchEnd(event) {
+      event.preventDefault();
+      this.touches = Array.from(event.touches);
+      
+      if (this.touches.length === 0) {
+        this.isDragging = false;
+      }
+    },
+
+    zoomIn() {
+      const newZoom = Math.min(3, this.zoomLevel * 1.2);
+      this.zoomLevel = newZoom;
+    },
+
+    zoomOut() {
+      const newZoom = Math.max(0.2, this.zoomLevel / 1.2);
+      this.zoomLevel = newZoom;
+    },
+
+    resetZoom() {
+      this.zoomLevel = 1;
+      this.panX = 0;
+      this.panY = 0;
+    },
+
+    toggleUnits() {
+      this.animateChanges = true;
+      this.isMetric = !this.isMetric;
+      
+      this.plates.forEach(plate => {
+        if (this.isMetric) {
+          plate.width = this.convertToMetric(plate.width);
+          plate.height = this.convertToMetric(plate.height);
+        } else {
+          plate.width = this.convertToImperial(plate.width);
+          plate.height = this.convertToImperial(plate.height);
         }
         
-        if (!found) {
-          alert('Cannot place point here - try a different location with more space.')
-          return null
-        }
-      }
+        plate.widthInput = this.formatNumber(plate.width);
+        plate.heightInput = this.formatNumber(plate.height);
+      });
       
-      const circle = {
-        id: ++circleCounter.value,
-        x: constrained.x,
-        y: constrained.y,
-        slideIndex: slideIndex
-      }
-      
-      circles.value.push(circle)
-      selectCircle(circle)
-      return circle
-    }
-    
-    const addCircleFromInputs = () => {
-      if (!measurementMode.value) return
-      
-      const x = parseInt(xInput.value) || 100
-      const y = parseInt(yInput.value) || 100
-      addCircle(x, y, currentSlide.value)
-    }
-    
-    const selectCircle = (circle) => {
-      selectedCircle.value = circle
-      xInput.value = Math.round(circle.x)
-      yInput.value = Math.round(circle.y)
-      currentSlide.value = circle.slideIndex
-    }
-    
-    const deleteCircle = (circleId) => {
-      const index = circles.value.findIndex(c => c.id === circleId)
-      if (index !== -1) {
-        circles.value.splice(index, 1)
-        
-        if (selectedCircle.value?.id === circleId) {
-          selectedCircle.value = null
-          xInput.value = ''
-          yInput.value = ''
-        }
-      }
-    }
-    
-    const selectMaterial = (materialId) => {
-      selectedMaterial.value = materialId
+      this.saveToMemory();
+      this.renderCanvas();
       
       setTimeout(() => {
-        const allCards = document.querySelectorAll('.material-card')
-        allCards.forEach((card, index) => {
-          const material = materials.value[index]
-          if (material.id === materialId) {
-            const ripple = card.querySelector('.selection-ripple')
-            ripple.style.transform = 'scale(1)'
-            ripple.style.opacity = '0.6'
-            
-            setTimeout(() => {
-              ripple.style.transform = 'scale(1.5)'
-              ripple.style.opacity = '0'
-            }, 150)
-          }
-        })
-      }, 50)
-    }
-    
-    const handleOverlayClick = (event) => {
-      if (!measurementMode.value || isDragging.value) return
-      
-      const overlay = event.currentTarget
-      const slideIndex = parseInt(overlay.dataset.slide)
-      
-      if (slideIndex !== currentSlide.value) return
-      
-      const rect = overlay.getBoundingClientRect()
-      const coords = getEventCoords(event)
-      const x = coords.x - rect.left
-      const y = coords.y - rect.top
-      
-      addCircle(x, y, slideIndex)
-    }
-    
-    const updateFromInputs = () => {
-      if (selectedCircle.value && measurementMode.value) {
-        const x = parseInt(xInput.value) || 0
-        const y = parseInt(yInput.value) || 0
-        
-        const overlay = document.querySelector(`.measurement-overlay[data-slide="${selectedCircle.value.slideIndex}"]`)
-        if (!overlay) return
-        
-        const rect = overlay.getBoundingClientRect()
-        const constrained = constrainCoordinates(x, y, rect)
-        
-        if (!checkCollision(constrained.x, constrained.y, selectedCircle.value.slideIndex, selectedCircle.value.id)) {
-          selectedCircle.value.x = constrained.x
-          selectedCircle.value.y = constrained.y
-          
-          xInput.value = Math.round(constrained.x)
-          yInput.value = Math.round(constrained.y)
-        } else {
-          xInput.value = Math.round(selectedCircle.value.x)
-          yInput.value = Math.round(selectedCircle.value.y)
-        }
+        this.animateChanges = false;
+      }, 300);
+    },
+
+    convertToMetric(inches) {
+      return inches * 2.54;
+    },
+
+    convertToImperial(cm) {
+      return cm / 2.54;
+    },
+
+    handleImageUpload(event) {
+      const file = event.target.files[0];
+      if (!file) return;
+
+      if (!file.type.startsWith('image/')) {
+        this.showAlert('Please select a valid image file');
+        return;
       }
-    }
-    
-    const handleCircleMouseDown = (event, circle) => {
-      event.preventDefault()
-      event.stopPropagation()
+
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        const img = new Image();
+        img.onload = () => {
+          this.baseImage = img;
+          this.renderCanvas();
+          this.showAlert('Image uploaded successfully!');
+        };
+        img.onerror = () => {
+          this.showAlert('Failed to load the uploaded image');
+        };
+        img.src = e.target.result;
+      };
+      reader.readAsDataURL(file);
+    },
+
+    downloadPreview() {
+      const canvas = this.$refs.previewCanvas;
+      if (!canvas) return;
+
+      const exportCanvas = document.createElement('canvas');
+      const exportCtx = exportCanvas.getContext('2d');
       
-      isDragging.value = true
-      draggedCircle.value = circle
-      selectCircle(circle)
+      exportCanvas.width = 1200;
+      exportCanvas.height = 800;
       
-      const overlay = event.target.closest('.measurement-overlay')
-      const rect = overlay.getBoundingClientRect()
+      const originalWidth = this.canvasWidth;
+      const originalHeight = this.canvasHeight;
       
-      const startCoords = getEventCoords(event)
-      const startX = startCoords.x
-      const startY = startCoords.y
-      const initialX = circle.x
-      const initialY = circle.y
+      this.canvasWidth = exportCanvas.width;
+      this.canvasHeight = exportCanvas.height;
       
-      const onMove = (e) => {
-        if (!isDragging.value || draggedCircle.value !== circle) return
-        
-        const coords = getEventCoords(e)
-        const deltaX = coords.x - startX
-        const deltaY = coords.y - startY
-        
-        let newX = initialX + deltaX
-        let newY = initialY + deltaY
-        
-        const constrained = constrainCoordinates(newX, newY, rect)
-        
-        if (!checkCollision(constrained.x, constrained.y, circle.slideIndex, circle.id)) {
-          circle.x = constrained.x
-          circle.y = constrained.y
-          xInput.value = Math.round(constrained.x)
-          yInput.value = Math.round(constrained.y)
-        }
+      this.renderCanvasToContext(exportCtx, exportCanvas);
+      
+      this.canvasWidth = originalWidth;
+      this.canvasHeight = originalHeight;
+      this.renderCanvas();
+
+      exportCanvas.toBlob((blob) => {
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `garden-design-preview-${Date.now()}.png`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+      });
+    },
+
+    handleDragStart(index, event) {
+      this.draggedIndex = index;
+      event.dataTransfer.effectAllowed = 'move';
+      event.dataTransfer.setData('text/html', index.toString());
+    },
+
+    handleDragOver(event) {
+      event.preventDefault();
+      event.dataTransfer.dropEffect = 'move';
+    },
+
+    handleDrop(targetIndex, event) {
+      event.preventDefault();
+      
+      if (this.draggedIndex === null || this.draggedIndex === targetIndex) {
+        return;
       }
+
+      this.animateChanges = true;
       
-      const onTouchMove = (e) => {
-        e.preventDefault()
-        onMove(e)
-      }
+      const draggedPlate = this.plates[this.draggedIndex];
+      this.plates.splice(this.draggedIndex, 1);
+      this.plates.splice(targetIndex, 0, draggedPlate);
       
-      const onEnd = () => {
-        if (draggedCircle.value === circle) {
-          isDragging.value = false
-          draggedCircle.value = null
-        }
-        
-        document.removeEventListener('mousemove', onMove)
-        document.removeEventListener('mouseup', onEnd)
-        document.removeEventListener('touchmove', onTouchMove)
-        document.removeEventListener('touchend', onEnd)
+      if (this.activePlateIndex === this.draggedIndex) {
+        this.activePlateIndex = targetIndex;
+      } else if (this.draggedIndex < this.activePlateIndex && targetIndex >= this.activePlateIndex) {
+        this.activePlateIndex--;
+      } else if (this.draggedIndex > this.activePlateIndex && targetIndex <= this.activePlateIndex) {
+        this.activePlateIndex++;
       }
       
-      document.addEventListener('mousemove', onMove)
-      document.addEventListener('mouseup', onEnd)
-      document.addEventListener('touchmove', onTouchMove, { passive: false })
-      document.addEventListener('touchend', onEnd)
-    }
-    
-    const submitData = () => {
-      const outputData = {
-        product: {
-          title: product.title,
-          price: product.price
-        },
-        measurements: circles.value.map(circle => ({
-          id: circle.id,
-          slideIndex: circle.slideIndex,
-          coordinates: {
-            pixels: {
-              x: Math.round(circle.x),
-              y: Math.round(circle.y)
-            },
-            percentage: getPercentageCoords(circle)
-          }
-        })),
-        selectedMaterial: selectedMaterial.value,
-        currentSlide: currentSlide.value,
-        totalSlides: totalSlides.value,
-        timestamp: new Date().toISOString()
+      this.saveToMemory();
+      this.renderCanvas();
+      
+      setTimeout(() => {
+        this.animateChanges = false;
+      }, 300);
+    },
+
+    handleDragEnd() {
+      this.draggedIndex = null;
+    },
+
+    loadFromMemory() {
+      let savedData = null;
+      
+      try {
+        const saved = localStorage.getItem('gardenDesignData');
+        savedData = saved ? JSON.parse(saved) : null;
+      } catch (error) {
+        console.warn('Failed to load from localStorage:', error);
+        
+        savedData = this.persistentData.plates.length > 0 ? this.persistentData : null;
       }
       
-      console.log('Product Configuration Data:', outputData)
-      alert(`Data submitted! Check console for details.\n\n${JSON.stringify(outputData, null, 2)}`);
-    }
-    
-    const addToCart = () => {
-      if (selectedMaterial.value) {
-        alert(`Added ${product.title} with ${materials.value.find(m => m.id === selectedMaterial.value)?.name} to cart!`)
+      if (savedData && savedData.plates.length > 0) {
+        this.isMetric = savedData.isMetric !== undefined ? savedData.isMetric : true;
+        this.plates = savedData.plates.map(plate => ({
+          ...plate,
+          widthInput: this.formatNumber(plate.width),
+          heightInput: this.formatNumber(plate.height),
+          widthError: false,
+          heightError: false
+        }));
       } else {
-        alert('Please select a material before adding to cart.')
+        this.initializeDefaultPlate();
       }
-    }
-    
-    let touchStartX = 0
-    let touchStartY = 0
-    let isSwipeGesture = false
-    
-    const handleTouchStart = (e) => {
-      touchStartX = e.touches[0].clientX
-      touchStartY = e.touches[0].clientY
-      isSwipeGesture = true
-    }
-    
-    const handleTouchMove = (e) => {
-      if (!isSwipeGesture) return
-      e.preventDefault()
-    }
-    
-    const handleTouchEnd = (e) => {
-      if (!isSwipeGesture) return
+    },
+
+    clearSavedData() {
+      try {
+        localStorage.removeItem('gardenDesignData');
+      } catch (error) {
+        console.warn('Failed to clear localStorage:', error);
+      }
+      this.persistentData = { plates: [], isMetric: true };
+    },
+
+    initializeDefaultPlate() {
+      const defaultWidth = this.isMetric ? 250 : 98;
+      const defaultHeight = this.isMetric ? 128 : 50;
       
-      const endX = e.changedTouches[0].clientX
-      const endY = e.changedTouches[0].clientY
-      const diffX = touchStartX - endX
-      const diffY = Math.abs(touchStartY - endY)
+      this.plates = [{
+        id: Date.now(),
+        width: defaultWidth,
+        height: defaultHeight,
+        widthInput: this.formatNumber(defaultWidth),
+        heightInput: this.formatNumber(defaultHeight),
+        widthError: false,
+        heightError: false
+      }];
+      this.saveToMemory();
+    },
+
+    saveToMemory() {
+      const dataToSave = {
+        plates: this.plates.map(plate => ({
+          id: plate.id,
+          width: plate.width,
+          height: plate.height
+        })),
+        isMetric: this.isMetric,
+        lastUpdated: Date.now()
+      };
       
-      if (Math.abs(diffX) > 50 && diffY < 100) {
-        if (diffX > 0) {
-          nextSlide()
+      try {
+        localStorage.setItem('gardenDesignData', JSON.stringify(dataToSave));
+      } catch (error) {
+        console.warn('Failed to save to localStorage:', error);
+        
+        this.persistentData = dataToSave;
+      }
+    },
+
+    formatNumber(num) {
+      const rounded = Math.round(num * 10) / 10;
+      if (this.locale === 'de') {
+        return rounded.toString().replace('.', ',');
+      }
+      return rounded.toString();
+    },
+
+    parseNumber(str) {
+      if (!str) return null;
+      
+      let cleanStr = str.replace(',', '.');
+      const num = parseFloat(cleanStr);
+      return isNaN(num) ? null : num;
+    },
+
+    validateAndUpdatePlate(index, dimension, value) {
+      const plate = this.plates[index];
+      const num = this.parseNumber(value);
+      
+      this.alertMessage = '';
+      
+      if (num === null && value !== '') {
+        plate[`${dimension}Error`] = true;
+        this.showAlert(`Invalid input for ${dimension === 'width' ? 'width' : 'height'}`);
+        return;
+      }
+
+      if (num !== null) {
+        let minWidth, maxWidth, minHeight, maxHeight;
+        
+        if (this.isMetric) {
+          minWidth = 20; maxWidth = 300;
+          minHeight = 30; maxHeight = 128;
         } else {
-          prevSlide()
+          minWidth = 8; maxWidth = 118;
+          minHeight = 12; maxHeight = 50;
         }
+
+        if (dimension === 'width' && (num < minWidth || num > maxWidth)) {
+          plate[`${dimension}Error`] = true;
+          this.showAlert(`Width must be between ${minWidth} and ${maxWidth} ${this.currentUnit}`);
+          return;
+        }
+        
+        if (dimension === 'height' && (num < minHeight || num > maxHeight)) {
+          plate[`${dimension}Error`] = true;
+          this.showAlert(`Height must be between ${minHeight} and ${maxHeight} ${this.currentUnit}`);
+          return;
+        }
+
+        plate[`${dimension}Error`] = false;
+        plate[dimension] = num;
+        this.saveToMemory();
+        this.renderCanvas();
+      }
+    },
+
+    formatInput(index, dimension) {
+      const plate = this.plates[index];
+      if (!plate[`${dimension}Error`] && plate[dimension]) {
+        plate[`${dimension}Input`] = this.formatNumber(plate[dimension]);
+      }
+    },
+
+    showAlert(message) {
+      this.alertMessage = message;
+      setTimeout(() => {
+        this.alertMessage = '';
+      }, 3000);
+    },
+
+    addPlate() {
+      if (this.plates.length >= 10) return;
+      
+      this.animateChanges = true;
+      
+      const defaultWidth = this.isMetric ? 30 : 12;
+      const defaultHeight = this.isMetric ? 30 : 12;
+      
+      this.plates.push({
+        id: Date.now(),
+        width: defaultWidth,
+        height: defaultHeight,
+        widthInput: this.formatNumber(defaultWidth),
+        heightInput: this.formatNumber(defaultHeight),
+        widthError: false,
+        heightError: false
+      });
+      
+      this.activePlateIndex = this.plates.length - 1;
+      this.saveToMemory();
+      this.renderCanvas();
+      
+      setTimeout(() => {
+        this.animateChanges = false;
+      }, 300);
+    },
+
+    deletePlate(index) {
+      if (this.plates.length <= 1) return;
+      
+      this.animateChanges = true;
+      
+      this.plates.splice(index, 1);
+      if (this.activePlateIndex >= this.plates.length) {
+        this.activePlateIndex = this.plates.length - 1;
+      }
+      this.saveToMemory();
+      this.renderCanvas();
+      
+      setTimeout(() => {
+        this.animateChanges = false;
+      }, 300);
+    },
+
+    initializeCanvas() {
+      this.handleResize();
+    },
+
+    handleResize() {
+      const container = this.$refs.canvasWrapper;
+      if (container) {
+        const containerWidth = container.clientWidth - 10;
+        const containerHeight = container.clientHeight - 140;
+        
+        this.canvasWidth = containerWidth;
+        this.canvasHeight = containerHeight;
+        
+        this.$nextTick(() => {
+          this.renderCanvas();
+        });
+      }
+    },
+
+    loadImage() {
+      const img = new Image();
+      img.crossOrigin = 'anonymous';
+      img.onload = () => {
+        this.baseImage = img;
+        this.renderCanvas();
+      };
+      img.onerror = (error) => {
+        console.error('Failed to load image:', error);
+        this.createFallbackImage();
+      };
+      img.src = 'https://rueckwand24.com/cdn/shop/files/Kuechenrueckwand-Kuechenrueckwand-Gruene-frische-Kraeuter-KR-000018-HB.jpg?v=1695288356&width=1200';
+    },
+
+    createFallbackImage() {
+      const canvas = document.createElement('canvas');
+      canvas.width = 800;
+      canvas.height = 400;
+      const ctx = canvas.getContext('2d');
+      
+      const gradient = ctx.createLinearGradient(0, 0, 0, canvas.height);
+      gradient.addColorStop(0, '#87CEEB');
+      gradient.addColorStop(1, '#98FB98');
+      ctx.fillStyle = gradient;
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+      
+      ctx.fillStyle = '#228B22';
+      for (let i = 0; i < 50; i++) {
+        const x = Math.random() * canvas.width;
+        const y = canvas.height * 0.6 + Math.random() * canvas.height * 0.4;
+        const size = 5 + Math.random() * 15;
+        ctx.beginPath();
+        ctx.arc(x, y, size, 0, Math.PI * 2);
+        ctx.fill();
       }
       
-      isSwipeGesture = false
+      this.baseImage = canvas;
+      this.renderCanvas();
+    },
+
+    renderCanvas() {
+      const canvas = this.$refs.previewCanvas;
+      if (!canvas) return;
+      this.renderCanvasToContext(canvas.getContext('2d'), canvas);
+    },
+
+    renderCanvasToContext(ctx, canvas) {
+      if (!this.baseImage) return;
+      
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      
+      const totalWidthCm = this.totalWidth;
+      const maxHeightCm = Math.max(...this.plates.map(p => p.height));
+      
+      const totalWidthMetric = this.isMetric ? totalWidthCm : this.convertToMetric(totalWidthCm);
+      const maxHeightMetric = this.isMetric ? maxHeightCm : this.convertToMetric(maxHeightCm);
+      
+      const spacing = this.plates.length > 1 ? (this.plates.length - 1) * 1 : 0;
+      const scaleX = (canvas.width - spacing) / totalWidthMetric;
+      const scaleY = canvas.height / maxHeightMetric;
+      const scale = Math.min(scaleX, scaleY) * 0.9;
+      
+      const totalRenderedWidth = totalWidthMetric * scale + spacing;
+      const maxRenderedHeight = maxHeightMetric * scale;
+      
+      const startX = (canvas.width - totalRenderedWidth) / 2;
+      const startY = (canvas.height - maxRenderedHeight) / 2;
+      
+      let currentX = startX;
+      
+      this.plates.forEach((plate, index) => {
+        const plateWidthMetric = this.isMetric ? plate.width : this.convertToMetric(plate.width);
+        const plateHeightMetric = this.isMetric ? plate.height : this.convertToMetric(plate.height);
+        
+        const plateWidthPx = plateWidthMetric * scale;
+        const plateHeightPx = plateHeightMetric * scale;
+        
+        const y = startY + (maxRenderedHeight - plateHeightPx) / 2;
+        
+        this.renderPlateSegment(ctx, currentX, y, plateWidthPx, plateHeightPx, plate, index, plateWidthMetric, plateHeightMetric);
+        
+        ctx.fillStyle = index === this.activePlateIndex ? '#4caf50' : '#666';
+        ctx.font = '14px sans-serif';
+        ctx.textAlign = 'center';
+        ctx.fillText(`${index + 1}`, currentX + plateWidthPx/2, y - 8);
+        
+        currentX += plateWidthPx + (index < this.plates.length - 1 ? 1 : 0);
+      });
+    },
+
+    renderPlateSegment(ctx, x, y, width, height, plate, plateIndex, plateWidthCm, plateHeightCm) {
+      if (!this.baseImage) {
+        ctx.fillStyle = '#f0f0f0';
+        ctx.fillRect(x, y, width, height);
+        ctx.fillStyle = '#999';
+        ctx.font = '12px sans-serif';
+        ctx.textAlign = 'center';
+        ctx.fillText('Loading...', x + width/2, y + height/2);
+        return;
+      }
+      
+      const totalWidthCm = this.plates.reduce((sum, p) => {
+        return sum + (this.isMetric ? p.width : this.convertToMetric(p.width));
+      }, 0);
+      
+      const imageWidth = this.baseImage.width || 1200;
+      const imageHeight = this.baseImage.height || 800;
+      
+      const baseImageWidthCm = 300;
+      let sourceX = 0;
+      
+      for (let i = 0; i < plateIndex; i++) {
+        sourceX += this.isMetric ? this.plates[i].width : this.convertToMetric(this.plates[i].width);
+      }
+      
+      const sourceXPx = (sourceX / baseImageWidthCm) * imageWidth;
+      const sourceWidthPx = (plateWidthCm / baseImageWidthCm) * imageWidth;
+      
+      const maxHeightCm = 128;
+      const sourceHeightPx = (plateHeightCm / maxHeightCm) * imageHeight;
+      const sourceYPx = imageHeight - sourceHeightPx;
+      
+      let actualSourceX = sourceXPx;
+      let actualSourceWidth = sourceWidthPx;
+      let actualSourceY = Math.max(0, sourceYPx);
+      let actualSourceHeight = sourceHeightPx;
+      let shouldMirror = false;
+      
+      if (totalWidthCm > 300) {
+        const normalizedX = sourceX % (baseImageWidthCm * 2);
+        
+        if (normalizedX > baseImageWidthCm) {
+          shouldMirror = true;
+          actualSourceX = imageWidth - ((normalizedX - baseImageWidthCm) / baseImageWidthCm) * imageWidth;
+        } else {
+          actualSourceX = (normalizedX / baseImageWidthCm) * imageWidth;
+        }
+        actualSourceWidth = (plateWidthCm / baseImageWidthCm) * imageWidth;
+      }
+      
+      actualSourceX = Math.max(0, Math.min(actualSourceX, imageWidth - 1));
+      actualSourceWidth = Math.min(actualSourceWidth, imageWidth - actualSourceX);
+      actualSourceHeight = Math.min(actualSourceHeight, imageHeight - actualSourceY);
+      
+      const canvas = ctx.canvas;
+      const FORCE_BOTTOM_Y = canvas.height - 30;
+      const correctedY = FORCE_BOTTOM_Y - height;
+      
+      ctx.save();
+      
+      try {
+        if (shouldMirror) {
+          ctx.scale(-1, 1);
+          ctx.drawImage(
+            this.baseImage,
+            actualSourceX,
+            actualSourceY,
+            actualSourceWidth,
+            actualSourceHeight,
+            -x - width,
+            correctedY,
+            width,
+            height
+          );
+        } else {
+          ctx.drawImage(
+            this.baseImage,
+            actualSourceX,
+            actualSourceY,
+            actualSourceWidth,
+            actualSourceHeight,
+            x,
+            correctedY,
+            width,
+            height
+          );
+        }
+        
+      } catch (error) {
+        console.error('Error drawing image segment:', error);
+        ctx.fillStyle = plateIndex === 0 ? '#e8f5e8' : '#ffe8e8';
+        ctx.fillRect(x, correctedY, width, height);
+        ctx.fillStyle = '#666';
+        ctx.font = '10px sans-serif';
+        ctx.textAlign = 'center';
+        ctx.fillText(`${plateHeightCm.toFixed(0)}cm`, x + width/2, correctedY + height/2);
+      }
+      
+      ctx.restore();
     }
-    
-    onMounted(() => {
-      const track = carouselTrack.value
-      if (track) {
-        track.addEventListener('touchstart', handleTouchStart)
-        track.addEventListener('touchmove', handleTouchMove)
-        track.addEventListener('touchend', handleTouchEnd)
-      }
-    })
-    
-    onUnmounted(() => {
-      const track = carouselTrack.value
-      if (track) {
-        track.removeEventListener('touchstart', handleTouchStart)
-        track.removeEventListener('touchmove', handleTouchMove)
-        track.removeEventListener('touchend', handleTouchEnd)
-      }
-    })
-    
-    return {
-      currentSlide,
-      measurementMode,
-      circles,
-      selectedMaterial,
-      selectedCircle,
-      draggedCircle,
-      xInput,
-      yInput,
-      
-      mainCarousel,
-      carouselTrack,
-      
-      product,
-      productImages,
-      materials,
-      
-      totalSlides,
-      circlesBySlide,
-      
-      goToSlide,
-      nextSlide,
-      prevSlide,
-      toggleMeasurementMode,
-      getCirclesForSlide,
-      getPercentageCoords,
-      addCircleFromInputs,
-      selectCircle,
-      deleteCircle,
-      selectMaterial,
-      handleOverlayClick,
-      updateFromInputs,
-      handleCircleMouseDown,
-      submitData,
-      addToCart
+  },
+
+  watch: {
+    plates: {
+      handler() {
+        this.$nextTick(() => {
+          this.renderCanvas();
+        });
+      },
+      deep: true
     }
   }
 }
 </script>
 
 <style scoped>
-.apple-product-page {
-  font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'Segoe UI', Roboto, sans-serif;
-  background: #ffffff;
-  min-height: 100vh;
-}
-
-.hero-section {
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-  color: white;
-  padding: 120px 20px 80px;
-  text-align: center;
-  position: relative;
+.app-container {
+  display: flex;
+  height: 100vh;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  background-color: #f9f9f9;
   overflow: hidden;
 }
 
-.hero-section::before {
-  content: '';
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background: radial-gradient(circle at 30% 20%, rgba(255,255,255,0.1) 0%, transparent 50%);
+.sidebar {
+  width: 50%;
+  background-color: #e8e8e8;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 2rem;
 }
 
-.hero-content {
-  max-width: 800px;
-  margin: 0 auto;
-  position: relative;
-  z-index: 1;
+.canvas-container {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 1rem;
 }
 
-.hero-title {
-  font-size: clamp(2.5rem, 5vw, 4rem);
-  font-weight: 700;
-  margin: 0 0 20px 0;
-  line-height: 1.1;
-  letter-spacing: -0.02em;
-}
-
-.hero-subtitle {
-  font-size: clamp(1.125rem, 2vw, 1.375rem);
-  font-weight: 400;
-  margin: 0 0 30px 0;
-  opacity: 0.9;
-  line-height: 1.4;
-}
-
-.hero-price {
-  font-size: clamp(1.5rem, 3vw, 2rem);
-  font-weight: 600;
-  opacity: 0.95;
-}
-
-.product-showcase {
-  padding: 40px 20px;
-}
-
-.showcase-container {
-  max-width: 1400px;
-  margin: 0 auto;
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 20px;
-  align-items: start;
-}
-
-.gallery-wrapper {
-  position: sticky;
-  top: 16px;
-}
-
-.image-gallery {
-  background: white;
-  border-radius: 24px;
-  padding: 20px;
-  box-shadow: 0 8px 60px rgba(0, 0, 0, 0.08);
-  position: relative;
-}
-
-.gallery-viewport {
-  position: relative;
+.canvas-wrapper {
+  flex: 1;
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   overflow: hidden;
-  border-radius: 16px;
-  aspect-ratio: 1.25;
-  background: #f8f9fa;
-}
-
-.gallery-track {
-  display: flex;
-  transition: transform 0.6s cubic-bezier(0.16, 1, 0.3, 1);
-  height: 100%;
-}
-
-.gallery-slide {
-  width: 100%;
-  height: 100%;
-  flex-shrink: 0;
   position: relative;
-}
-
-.image-container {
-  position: relative;
-  width: 100%;
-  height: 100%;
-}
-
-.gallery-slide img {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-  border-radius: 12px;
-}
-
-.measurement-overlay {
-  position: absolute;
-  top: 0;
-  left: 0;
-  width: 100%;
-  height: 100%;
-  pointer-events: none;
-  z-index: 10;
-  border-radius: 12px;
-}
-
-.measurement-overlay.active {
-  pointer-events: all;
-  cursor: crosshair;
-  touch-action: none; 
-}
-
-.measurement-point {
-  position: absolute;
-  width: 50px;
-  height: 50px;
-  cursor: move;
-  transform: translate(-50%, -50%);
-  transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
-  z-index: 15;
-  touch-action: none; 
-}
-
-.point-inner {
-  width: 100%;
-  height: 100%;
-  background: transparent; 
-  border: 3px solid rgba(0, 122, 255, 0.9); 
-  border-radius: 50%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  box-shadow: 0 4px 20px rgba(0, 122, 255, 0.3);
-}
-
-.point-label {
-  color: rgba(0, 122, 255, 0.9); 
-  font-size: 12px;
-  font-weight: 700;
-}
-
-.measurement-point:hover .point-inner {
-  background: transparent; 
-  border-color: rgba(0, 122, 255, 1);
-  box-shadow: 0 8px 30px rgba(0, 122, 255, 0.5);
-}
-
-.measurement-point.selected .point-inner {
-  background: transparent;
-  border-color: rgba(255, 59, 48, 0.9); 
-  box-shadow: 0 4px 20px rgba(255, 59, 48, 0.4);
-}
-
-.measurement-point.selected .point-label {
-  color: rgba(255, 59, 48, 0.9);
-}
-
-.measurement-point.dragging .point-inner {
-  background: transparent; 
-  border-color: rgba(255, 59, 48, 1);
-  box-shadow: 0 12px 40px rgba(255, 59, 48, 0.6);
-}
-
-.measurement-point.dragging .point-label {
-  color: rgba(255, 59, 48, 1);
-}
-
-.gallery-nav {
-  position: absolute;
-  top: 50%;
-  transform: translateY(-50%);
-  background: rgba(255, 255, 255, 0.95);
-  border: none;
-  width: 48px;
-  height: 48px;
-  border-radius: 50%;
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  transition: all 0.3s ease;
-  backdrop-filter: blur(20px);
-  z-index: 20;
-  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
-}
-
-.gallery-nav:hover:not(:disabled) {
-  background: white;
-  transform: translateY(-50%) scale(1.05);
-  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.15);
-}
-
-.gallery-nav:disabled {
-  opacity: 0.3;
-  cursor: not-allowed;
-}
-
-.gallery-nav.prev {
-  left: 20px;
-}
-
-.gallery-nav.next {
-  right: 20px;
-}
-
-.gallery-nav svg {
-  width: 24px;
-  height: 24px;
-  fill: #1d1d1f;
-}
-
-.gallery-thumbnails {
-  display: flex;
-  gap: 12px;
-  margin-top: 20px;
-  justify-content: center;
-}
-
-.thumbnail {
-  width: 60px;
-  height: 60px;
-  border-radius: 12px;
-  overflow: hidden;
-  cursor: pointer;
-  transition: all 0.3s ease;
-  border: 2px solid transparent;
-}
-
-.thumbnail.active {
-  border-color: #007aff;
-  transform: scale(1.05);
-}
-
-.thumbnail img {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-}
-
-.product-info {
-  padding-bottom: 32px;
-  border-bottom: 1px solid #e5e5ea;
-}
-
-.product-title {
-  font-size: clamp(2rem, 4vw, 2.5rem);
-  font-weight: 700;
-  color: #1d1d1f;
-  margin: 0 0 16px 0;
-  line-height: 1.1;
-  letter-spacing: -0.02em;
-}
-
-.product-description {
-  font-size: 1.125rem;
-  color: #86868b;
-  margin: 0 0 20px 0;
-  line-height: 1.5;
-}
-
-.product-price {
-  font-size: 1.5rem;
-  font-weight: 600;
-  color: #1d1d1f;
-}
-
-.product-config {
-  display: flex;
-  flex-direction: column;
-  gap: 40px;
-}
-
-.config-section {
-  background: white;
-  border-radius: 20px;
-  padding: 32px;
-  box-shadow: 0 4px 30px rgba(0, 0, 0, 0.06);
-}
-
-.section-header {
-  margin-bottom: 32px;
-}
-
-.section-title {
-  font-size: 2rem;
-  font-weight: 700;
-  color: #1d1d1f;
-  margin: 0 0 12px 0;
-  letter-spacing: -0.01em;
-}
-
-.section-description {
-  font-size: 1.125rem;
-  color: #86868b;
-  margin: 0;
-  line-height: 1.5;
-}
-
-.control-group {
-  margin-bottom: 32px;
-}
-
-.toggle-control {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-}
-
-.toggle-label {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  width: 100%;
-  cursor: pointer;
-}
-
-.label-text {
-  font-size: 1.125rem;
-  font-weight: 600;
-  color: #1d1d1f;
-}
-
-.toggle-switch {
-  position: relative;
-  width: 70px;
-  height: 40px;
-  background: #e5e5ea;
-  border-radius: 20px;
-  cursor: pointer;
-  transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
-}
-
-.toggle-switch.active {
-  background: #007aff;
-}
-
-.toggle-slider {
-  position: absolute;
-  top: 3px;
-  left: 3px;
-  width: 34px;
-  height: 34px;
-  background: white;
-  border-radius: 50%;
-  transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.toggle-switch.active .toggle-slider {
-  transform: translateX(30px);
-}
-
-.toggle-icon {
-  width: 16px;
-  height: 16px;
-}
-
-.toggle-icon svg {
-  width: 100%;
-  height: 100%;
-  fill: #007aff;
-}
-
-.toggle-switch.active .toggle-icon svg {
-  fill: #007aff;
-}
-
-.coordinate-panel {
-  background: #f8f9fa;
-  border-radius: 16px;
-  padding: 24px;
-  transition: opacity 0.3s ease;
-}
-
-.coordinate-panel.disabled {
-  opacity: 0.5;
-  pointer-events: none;
-}
-
-.panel-title {
-  font-size: 1.25rem;
-  font-weight: 600;
-  color: #1d1d1f;
-  margin: 0 0 20px 0;
-}
-
-.coordinate-grid {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 16px;
-  margin-bottom: 24px;
-}
-
-.input-field {
-  position: relative;
-}
-
-.field-label {
-  display: block;
-  font-size: 0.875rem;
-  font-weight: 600;
-  color: #86868b;
-  margin-bottom: 8px;
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
-}
-
-.field-input {
-  width: 80%;
-  padding: 12px 40px 12px 16px;
-  border: 2px solid #e5e5ea;
-  border-radius: 12px;
-  font-size: 1rem;
-  font-weight: 500;
-  background: white;
-  transition: all 0.3s ease;
-}
-
-.field-input:focus {
-  outline: none;
-  border-color: #007aff;
-  box-shadow: 0 0 0 3px rgba(0, 122, 255, 0.1);
-}
-
-.field-input:disabled {
-  background: #f5f5f7;
-  color: #86868b;
-}
-
-.field-unit {
-  position: absolute;
-  right: 16px;
-  top: 50%;
-  transform: translateY(-50%);
-  font-size: 0.875rem;
-  color: #86868b;
-  pointer-events: none;
-  margin-top: 10px;
-}
-
-.action-button {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 8px;
-  padding: 12px 24px;
-  border: none;
-  border-radius: 12px;
-  font-size: 1rem;
-  font-weight: 600;
-  cursor: pointer;
-  transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
-  text-decoration: none;
-}
-
-.action-button svg {
-  width: 20px;
-  height: 20px;
-}
-
-.action-button.primary {
-  background: #007aff;
-  color: white;
-}
-
-.action-button.primary:hover:not(:disabled) {
-  background: #0051d5;
-  transform: translateY(-2px);
-  box-shadow: 0 8px 30px rgba(0, 122, 255, 0.3);
-}
-
-.action-button.secondary {
-  background: #f5f5f7;
-  color: #1d1d1f;
-}
-
-.action-button.secondary:hover:not(:disabled) {
-  background: #e5e5ea;
-  transform: translateY(-2px);
-}
-
-.action-button.large {
-  padding: 16px 32px;
-  font-size: 1.125rem;
-}
-
-.action-button:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-  transform: none !important;
-}
-
-.points-panel {
-  background: #f8f9fa;
-  border-radius: 16px;
-  padding: 24px;
-}
-
-.points-list {
-  display: flex;
-  flex-direction: column;
-  gap: 24px;
-}
-
-.slide-group {
-  background: white;
-  border-radius: 12px;
-  padding: 20px;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
-}
-
-.slide-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 16px;
-  padding-bottom: 12px;
-  border-bottom: 1px solid #f0f0f0;
-}
-
-.slide-label {
-  font-weight: 600;
-  color: #1d1d1f;
-}
-
-.point-count {
-  font-size: 0.875rem;
-  color: #86868b;
-}
-
-.points-grid {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-
-.point-item {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 12px 16px;
-  background: #f8f9fa;
   border-radius: 8px;
-  cursor: pointer;
-  transition: all 0.3s ease;
-  border: 2px solid transparent;
-}
-
-.point-item:hover {
   background: #f0f0f0;
 }
 
-.point-item.selected {
-  background: rgba(0, 122, 255, 0.1);
-  border-color: #007aff;
-}
-
-.point-info {
-  flex: 1;
-}
-
-.point-id {
-  font-weight: 600;
-  color: #1d1d1f;
-  font-size: 0.875rem;
-}
-
-.point-coords {
-  color: #007aff;
-  font-size: 0.875rem;
-  font-weight: 500;
-  margin: 2px 0;
-}
-
-.point-percentage {
-  color: #86868b;
-  font-size: 0.75rem;
-}
-
-.delete-point {
-  background: #ff3b30;
-  color: white;
-  border: none;
-  width: 28px;
-  height: 28px;
-  border-radius: 50%;
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  transition: all 0.3s ease;
-}
-
-.delete-point:hover {
-  background: #d70015;
-  transform: scale(1.1);
-}
-
-.delete-point svg {
-  width: 14px;
-  height: 14px;
-}
-
-.materials-grid {
-  display: grid;
-  grid-template-columns: 1fr;
-  gap: 20px;
-  margin-bottom: 32px;
-}
-
-.material-card {
-  display: flex;
-  align-items: center;
-  padding: 24px;
-  border: 2px solid #e5e5ea;
-  border-radius: 20px;
-  cursor: pointer;
-  transition: all 0.4s cubic-bezier(0.16, 1, 0.3, 1);
-  background: white;
-  position: relative;
-  overflow: hidden;
-  opacity: 0;
-  transform: translateY(20px);
-  animation: materialFadeIn 0.6s ease forwards;
-  animation-delay: var(--animation-delay);
-}
-
-@keyframes materialFadeIn {
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
-}
-
-.material-card::before {
-  content: '';
-  position: absolute;
-  top: 0;
-  left: -100%;
-  width: 100%;
-  height: 100%;
-  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.4), transparent);
-  transition: left 0.6s ease;
-  z-index: 1;
-}
-
-.material-card:hover::before {
-  left: 100%;
-}
-
-.material-card:hover:not(.selected) {
-  border-color: rgba(0, 122, 255, 0.3);
-  transform: translateY(-4px);
-  box-shadow: 0 12px 40px rgba(0, 122, 255, 0.1);
-}
-
-.material-card.selected {
-  border-color: #2C2C2C;
-  background: rgba(44, 44, 44, 0.05);
-  transform: translateY(-6px) scale(1.02);
-  box-shadow: 0 16px 50px rgba(44, 44, 44, 0.25);
-  animation: selectedPulse 2s ease-in-out infinite;
-  opacity: 1;
-}
-
-@keyframes selectedPulse {
-  0%, 100% { 
-    box-shadow: 0 16px 50px rgba(44, 44, 44, 0.25);
-  }
-  50% { 
-    box-shadow: 0 20px 60px rgba(44, 44, 44, 0.35);
-  }
-}
-
-.material-card.animate-in {
-  animation: materialSelectBounce 0.6s cubic-bezier(0.68, -0.55, 0.265, 1.55);
-}
-
-@keyframes materialSelectBounce {
-  0% { 
-    transform: translateY(-6px) scale(1.02);
-  }
-  50% { 
-    transform: translateY(-8px) scale(1.05);
-  }
-  100% { 
-    transform: translateY(-6px) scale(1.02);
-  }
-}
-
-.material-visual {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  margin-right: 20px;
-  position: relative;
-}
-
-.material-icon {
-  width: 48px;
-  height: 48px;
-  border-radius: 12px;
-  background: var(--material-gradient);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  margin-bottom: 8px;
-  transition: all 0.3s ease;
-  position: relative;
-  overflow: hidden;
-}
-
-.material-icon::before {
-  content: '';
-  position: absolute;
-  top: -50%;
-  left: -50%;
-  width: 200%;
-  height: 200%;
-  background: conic-gradient(from 0deg, transparent, rgba(255, 255, 255, 0.3), transparent);
-  animation: iconRotate 3s linear infinite;
-  opacity: 0;
-  transition: opacity 0.3s ease;
-}
-
-.material-card.selected .material-icon::before {
-  opacity: 1;
-}
-
-.material-card.selected .material-icon {
-  background: linear-gradient(135deg, #2C2C2C, #1a1a1a);
-  box-shadow: 0 4px 20px rgba(44, 44, 44, 0.4);
-}
-
-@keyframes iconRotate {
-  from { transform: rotate(0deg); }
-  to { transform: rotate(360deg); }
-}
-
-.material-icon svg {
-  width: 24px;
-  height: 24px;
-  fill: white;
-  position: relative;
-  z-index: 2;
-  filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.2));
-}
-
-.material-sample {
-  width: 32px;
-  height: 8px;
+.preview-canvas {
   border-radius: 4px;
-  background: var(--material-gradient);
-  position: relative;
-  overflow: hidden;
-  box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.2);
+  box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+  transform-origin: center center;
+  transition: transform 0.1s ease-out;
+  user-select: none;
+  touch-action: none;
 }
 
-.material-sample::before {
-  content: '';
-  position: absolute;
-  top: 0;
-  left: -100%;
-  width: 100%;
-  height: 100%;
-  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.6), transparent);
-  transition: left 0.8s ease;
+.zoom-controls {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  background: white;
+  border-radius: 8px;
+  padding: 0.5rem;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.1);
 }
 
-.material-card:hover .material-sample::before,
-.material-card.selected .material-sample::before {
-  left: 100%;
-}
-
-.material-content {
-  flex: 1;
-  position: relative;
-  z-index: 2;
-}
-
-.material-name {
-  font-size: 1.25rem;
-  font-weight: 600;
-  color: #1d1d1f;
-  margin: 0 0 8px 0;
-  transition: all 0.3s ease;
-}
-
-.material-card.selected .material-name {
-  color: #007aff;
-  text-shadow: none;
-  font-weight: 700;
-}
-
-.material-description {
-  color: #86868b;
-  margin: 0;
-  font-size: 0.875rem;
-  line-height: 1.5;
-  transition: color 0.3s ease;
-}
-
-.material-card.selected .material-description {
-  color: #1d1d1f;
-  font-weight: 500;
-}
-
-.material-indicator {
-  margin-left: 20px;
-  position: relative;
-  z-index: 2;
-}
-
-.selection-check {
+.zoom-btn {
   width: 36px;
   height: 36px;
-  border: 3px solid #e5e5ea;
+  border: 1px solid #dee2e6;
+  background: white;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 1.2rem;
+  font-weight: bold;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s ease;
+}
+
+.zoom-btn:hover:not(:disabled) {
+  background: #f8f9fa;
+  border-color: #adb5bd;
+}
+
+.zoom-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.zoom-level {
+  font-size: 0.9rem;
+  font-weight: 500;
+  color: #495057;
+  min-width: 50px;
+  text-align: center;
+}
+
+.reset-btn {
+  padding: 0.5rem 1rem;
+  border: 1px solid #dee2e6;
+  background: white;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 0.8rem;
+  font-weight: 500;
+  transition: all 0.2s ease;
+}
+
+.reset-btn:hover {
+  background: #f8f9fa;
+  border-color: #adb5bd;
+}
+
+.export-controls {
+  display: flex;
+  gap: 1rem;
+  flex-wrap: wrap;
+  justify-content: center;
+}
+
+.export-btn {
+  background-color: #2196f3;
+  color: white;
+  border: none;
+  padding: 0.75rem 1.5rem;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 0.9rem;
+  transition: all 0.2s ease;
+  touch-action: manipulation;
+  min-height: 44px;
+  white-space: nowrap;
+}
+
+.export-btn:hover {
+  background-color: #1976d2;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 8px rgba(33, 150, 243, 0.3);
+}
+
+.main-content {
+  width: 50%;
+  background-color: white;
+  padding: 3rem 2rem;
+  display: flex;
+  flex-direction: column;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+.header {
+  margin-bottom: 1rem;
+}
+
+.title {
+  font-size: 2rem;
+  font-weight: 300;
+  color: #333;
+  margin: 0 0 1.5rem 0;
+  text-align: left;
+  letter-spacing: -1px;
+}
+
+.controls-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 1rem;
+  margin-bottom: 1rem;
+}
+
+.unit-toggle-btn {
+  background-color: #f8f9fa;
+  color: #6c757d;
+  border: 2px solid #e9ecef;
+  padding: 0.75rem 1.25rem;
+  border-radius: 8px;
+  cursor: pointer;
+  font-weight: 600;
+  font-size: 1rem;
+  transition: all 0.3s ease;
+  min-width: 60px;
+  min-height: 44px;
+  touch-action: manipulation;
+}
+
+.unit-toggle-btn.active {
+  background-color: #000000;
+  color: white;
+  border-color: #000000;
+}
+
+.unit-toggle-btn:hover:not(.active) {
+  background-color: #e9ecef;
+  border-color: #dee2e6;
+}
+
+.upload-section {
+  display: flex;
+  align-items: center;
+}
+
+.upload-image-btn {
+  background-color: #f8f9fa;
+  color: #495057;
+  border: 2px solid #e9ecef;
+  padding: 0.75rem 1.25rem;
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 0.9rem;
+  font-weight: 500;
+  transition: all 0.3s ease;
+  touch-action: manipulation;
+  min-height: 44px;
+  white-space: nowrap;
+}
+
+.upload-image-btn:hover {
+  background-color: #e9ecef;
+  border-color: #dee2e6;
+  transform: translateY(-1px);
+}
+
+.alert {
+  background-color: #ffebee;
+  color: #c62828;
+  padding: 0.75rem 1rem;
+  border-radius: 4px;
+  margin-bottom: 1rem;
+  border-left: 4px solid #c62828;
+  font-size: 0.9rem;
+  animation: slideIn 0.3s ease;
+}
+
+@keyframes slideIn {
+  from { opacity: 0; transform: translateY(-10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.measurement-section {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 2rem;
+}
+
+.measurement-box {
+  background-color: #f8f9fa;
+  border-radius: 12px;
+  padding: 2rem;
+  border: none;
+  transition: all 0.3s ease;
+  cursor: grab;
+  position: relative;
+}
+
+.measurement-box:hover {
+  box-shadow: 0 4px 16px rgba(0,0,0,0.08);
+}
+
+.measurement-box.dragging {
+  opacity: 0.5;
+  transform: rotate(2deg);
+  cursor: grabbing;
+}
+
+.measurement-box.animated {
+  animation: bounce 0.3s ease;
+}
+
+@keyframes bounce {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.02); }
+}
+
+.debug-info {
+  margin-top: 2rem;
+  padding: 1rem;
+  background-color: #f8f9fa;
+  border-radius: 4px;
+  font-size: 0.8rem;
+  color: #666;
+}
+
+.debug-info p {
+  margin: 0.25rem 0;
+}
+
+.plate-row {
+  display: flex;
+  align-items: center;
+  gap: 1.5rem;
+  margin-bottom: 1.5rem;
+}
+
+.plate-row.first-plate {
+  margin-bottom: 0;
+}
+
+.plate-number {
+  width: 48px;
+  height: 48px;
+  border-radius: 8px;
+  background-color: #ffffff;
+  border: 2px solid #e9ecef;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 600;
+  font-size: 1.2rem;
+  color: #6c757d;
+  flex-shrink: 0;
+  transition: all 0.3s ease;
+}
+
+.plate-number.active {
+  background-color: #000000;
+  color: white;
+  border-color: #000000;
+}
+
+.plate-inputs {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  flex-wrap: wrap;
+  flex: 1;
+}
+
+.dimension-input {
+  width: 80px;
+  height: 48px;
+  padding: 0 1rem;
+  border: 1px solid #dee2e6;
+  border-radius: 8px;
+  font-size: 1.2rem;
+  font-weight: 500;
+  text-align: center;
+  background-color: white;
+  transition: all 0.2s ease;
+  flex-shrink: 0;
+}
+
+.dimension-input:focus {
+  outline: none;
+  border-color: #000000;
+  box-shadow: 0 0 0 3px rgba(0, 0, 0, 0.1);
+}
+
+.dimension-input.error {
+  border-color: #dc3545;
+  background-color: #fff5f5;
+  animation: shake 0.5s ease;
+}
+
+@keyframes shake {
+  0%, 100% { transform: translateX(0); }
+  25% { transform: translateX(-4px); }
+  75% { transform: translateX(4px); }
+}
+
+.unit-text {
+  color: #6c757d;
+  font-size: 1rem;
+  font-weight: 500;
+  flex-shrink: 0;
+}
+
+.multiply-symbol {
+  color: #6c757d;
+  font-size: 1.5rem;
+  font-weight: 300;
+  flex-shrink: 0;
+}
+
+.remove-btn {
+  width: 40px;
+  height: 40px;
+  border: none;
+  background-color: #ffebee;
+  color: #f8585a;
   border-radius: 50%;
   display: flex;
   align-items: center;
   justify-content: center;
-  transition: all 0.4s cubic-bezier(0.16, 1, 0.3, 1);
-  position: relative;
-  overflow: hidden;
+  cursor: pointer;
+  font-size: 1.5rem;
+  font-weight: 300;
+  transition: all 0.2s ease;
+  touch-action: manipulation;
+  min-height: 44px;
+  min-width: 44px;
+  flex-shrink: 0;
 }
 
-.selection-check::before {
-  content: '';
-  position: absolute;
-  top: 50%;
-  left: 50%;
-  width: 0;
-  height: 0;
-  background: var(--material-color);
-  border-radius: 50%;
-  transition: all 0.4s cubic-bezier(0.16, 1, 0.3, 1);
-  transform: translate(-50%, -50%);
-}
-
-.material-card.selected .selection-check {
-  background: var(--material-color);
-  border-color: var(--material-color);
-  transform: scale(1.1);
-}
-
-.material-card.selected .selection-check::before {
-  width: 100%;
-  height: 100%;
-}
-
-.check-animation {
-  position: relative;
-  z-index: 3;
-}
-
-.selection-check svg {
-  width: 18px;
-  height: 18px;
-  fill: white;
-  opacity: 0;
-  transition: all 0.4s cubic-bezier(0.16, 1, 0.3, 1);
-  transform: scale(0) rotate(-45deg);
-}
-
-.material-card.selected .selection-check svg {
-  opacity: 1;
-  transform: scale(1) rotate(0deg);
-}
-
-.selection-ripple {
-  position: absolute;
-  top: 50%;
-  left: 50%;
-  width: 20px;
-  height: 20px;
-  background: var(--material-color);
-  border-radius: 50%;
-  transform: translate(-50%, -50%) scale(0);
-  opacity: 0;
-  transition: all 0.6s cubic-bezier(0.16, 1, 0.3, 1);
-  pointer-events: none;
-  z-index: 1;
-}
-
-.material-card:not(.selected):hover {
-  border-color: rgba(0, 122, 255, 0.4);
-  transform: translateY(-2px);
-  box-shadow: 0 8px 30px rgba(0, 122, 255, 0.1);
-}
-
-.material-card:not(.selected):hover .material-icon {
+.remove-btn:hover {
+  background-color: #f8585a;
+  color: white;
   transform: scale(1.05);
 }
 
-.material-card:not(.selected):hover .selection-check {
-  border-color: rgba(0, 122, 255, 0.4);
-  background: rgba(0, 122, 255, 0.05);
+.dimension-labels {
+  display: flex;
+  gap: 8rem;
+  margin-left: 5rem;
+  flex-wrap: wrap;
 }
 
-.action-section {
+.label-group {
   display: flex;
   flex-direction: column;
-  gap: 16px;
+  gap: 0.25rem;
 }
 
-@media (max-width: 1200px) {
-  .showcase-container {
-    grid-template-columns: 1fr;
-    gap: 60px;
-  }
-  
-  .gallery-wrapper {
-    position: relative;
-    top: 0;
-  }
+.label-title {
+  font-weight: 600;
+  color: #495057;
+  font-size: 1rem;
+}
+
+.label-range {
+  color: #9ba3af;
+  font-size: 0.875rem;
+}
+
+.conversion-info {
+  display: flex;
+  gap: 8.5rem;
+  margin-left: 5rem;
+  margin-top: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.conversion-value {
+  color: #9ba3af;
+  font-size: 0.875rem;
+  font-weight: 500;
+}
+
+.add-plate-btn {
+  background-color: transparent;
+  color: #28a745;
+  border: 2px solid #e9f7ef;
+  padding: 10px 20px 10px 20px;
+  border-radius: 12px;
+  cursor: pointer;
+  font-size: 1rem;
+  font-weight: 500;
+  align-self: end;
+  transition: all 0.3s ease;
+  touch-action: manipulation;
+}
+
+.add-plate-btn:hover {
+  background-color: #e9f7ef;
+  border-color: #28a745;
+  transform: translateY(-2px);
+}
+
+.add-plate-btn.animated {
+  animation: pulse 0.3s ease;
+}
+
+@keyframes pulse {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.05); }
 }
 
 @media (max-width: 768px) {
-  .hero-section {
-    padding: 80px 20px 60px;
+  .app-container {
+    flex-direction: column;
+    height: 100vh;
+    overflow: hidden;
   }
   
-  .product-showcase {
-    padding: 60px 20px;
+  .sidebar {
+    width: 100%;
+    height: 40vh;
+    padding: 1rem;
+    flex-shrink: 0;
+  }
+
+  .canvas-wrapper {
+    flex: 1;
+    min-height: 200px;
+  }
+
+  .zoom-controls {
+    padding: 0.4rem;
+    gap: 0.4rem;
+  }
+
+  .zoom-btn {
+    width: 32px;
+    height: 32px;
+    font-size: 1rem;
+  }
+
+  .zoom-level {
+    font-size: 0.8rem;
+    min-width: 40px;
+  }
+
+  .reset-btn {
+    padding: 0.4rem 0.8rem;
+    font-size: 0.75rem;
   }
   
-  .showcase-container {
-    gap: 40px;
-  }
-  
-  .config-section {
-    padding: 24px;
-  }
-  
-  .coordinate-grid {
-    grid-template-columns: 1fr;
-  }
-  
-  .action-section {
+  .main-content {
+    width: 100%;
+    height: 60vh;
+    padding: 1rem;
+    background-color: #f5f5f5;
+    overflow-y: auto;
+    flex-shrink: 0;
+    display: flex;
     flex-direction: column;
   }
   
-  .gallery-nav {
-    width: 40px;
-    height: 40px;
+  .header {
+    margin-bottom: 0rem;
+    flex-shrink: 0;
   }
   
-  .gallery-nav svg {
-    width: 20px;
-    height: 20px;
+  .title {
+    display: none;
   }
   
-  .materials-grid {
-    grid-template-columns: 1fr;
-    gap: 16px;
+  .controls-row {
+    justify-content: center;
+    gap: 1rem;
+    margin-bottom: 1rem;
   }
   
-  .material-card {
-    padding: 20px;
+  .unit-toggle-btn, .upload-image-btn {
+    font-size: 0.9rem;
+    padding: 0.6rem 1rem;
+    border-radius: 8px;
   }
   
-  .material-visual {
-    margin-right: 16px;
+  .alert {
+    margin-bottom: 1rem;
+    flex-shrink: 0;
   }
   
-  .material-icon {
-    width: 40px;
-    height: 40px;
-  }
-  
-  .material-icon svg {
-    width: 20px;
-    height: 20px;
-  }
-  
-  .material-sample {
-    width: 28px;
-    height: 6px;
-  }
-  
-  .selection-check {
-    width: 32px;
-    height: 32px;
-  }
-  
-  .measurement-point {
-    width: 50px; 
-    height: 50px;
-  }
-  
-  .measurement-point::before {
-    content: '';
-    position: absolute;
-    top: -15px;
-    left: -15px;
-    right: -15px;
-    bottom: -15px;
-    z-index: -1;
-  }
-  
-  .point-inner {
+  .measurement-section {
+    gap: 1rem;
     width: 100%;
-    height: 100%;
+    padding: 0;
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+    overflow-y: auto;
+    padding-bottom: 2rem;
+  }
+  
+  .measurement-box {
+    background-color: white;
+    border-radius: 16px;
+    padding: 1.5rem;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+    margin-bottom: 1rem;
+    width: 100%;
+    box-sizing: border-box;
+    flex-shrink: 0;
+  }
+  
+  .plate-row {
+    gap: 0.75rem;
+    margin-bottom: 1rem;
+    width: 100%;
+    flex-wrap: nowrap;
+    align-items: center;
+  }
+  
+  .plate-row.first-plate {
+    margin-bottom: 1rem;
+  }
+  
+  .plate-number {
+    width: 40px;
+    height: 40px;
+    border-radius: 8px;
+    font-size: 1.1rem;
+    font-weight: 600;
+    background-color: #f8f9fa;
+    border: 2px solid #e9ecef;
+    flex-shrink: 0;
+  }
+  
+  .plate-number.active {
+    background-color: #000000;
+    color: white;
+    border-color: #000000;
+  }
+  
+  .plate-inputs {
+    gap: 0.5rem;
+    justify-content: flex-start;
+    flex-wrap: nowrap;
+    flex: 1;
+    align-items: center;
+    min-width: 0;
+  }
+  
+  .dimension-input {
+    width: 60px;
+    height: 40px;
+    font-size: 1rem;
+    font-weight: 600;
+    border: 1px solid #dee2e6;
+    border-radius: 8px;
+    flex-shrink: 0;
+  }
+  
+  .unit-text {
+    font-size: 0.9rem;
+    color: #6c757d;
+    font-weight: 500;
+    flex-shrink: 0;
+  }
+  
+  .multiply-symbol {
+    font-size: 1.1rem;
+    color: #6c757d;
+    flex-shrink: 0;
+  }
+  
+  .remove-btn {
+    width: 36px;
+    height: 36px;
+    background-color: #ffebee;
+    color: #f8585a;
+    border-radius: 50%;
+    font-size: 1.1rem;
+    min-height: 44px;
+    min-width: 44px;
+    flex-shrink: 0;
+  }
+  
+  .dimension-labels {
+    margin-left: 0;
+    gap: 2.5rem;
+    justify-content: space-between;
+    margin-top: 0;
+    width: 100%;
+    display: flex;
+  }
+  
+  .label-group {
+    flex: 1;
+    text-align: left;
+  }
+  
+  .label-title {
+    font-weight: 600;
+    color: #495057;
+    font-size: 1rem;
+    display: block;
+    margin-bottom: 0.25rem;
+  }
+  
+  .label-range {
+    color: #9ba3af;
+    font-size: 0.875rem;
+    display: block;
+  }
+  
+  .conversion-info {
+    margin-left: 0;
+    gap: 2.5rem;
+    justify-content: space-between;
+    margin-top: 0.5rem;
+    width: 100%;
+    display: flex;
+  }
+  
+  .conversion-value {
+    color: #9ba3af;
+    font-size: 0.875rem;
+    font-weight: 500;
+    flex: 1;
+    text-align: left;
+  }
+  
+  .add-plate-btn {
+    width: 100%;
+    background-color: white;
+    color: #28a745;
+    border: 2px solid #e9f7ef;
+    border-radius: 16px;
+    padding: 1.25rem;
+    font-size: 1rem;
+    font-weight: 600;
+    margin-top: 1rem;
+    margin-bottom: 1rem;
+    box-sizing: border-box;
+    flex-shrink: 0;
+  }
+  
+  .add-plate-btn:hover {
+    background-color: #e9f7ef;
+    transform: none;
   }
 }
 
 @media (max-width: 480px) {
-  .gallery-nav {
-    display: none;
+  .main-content {
+    padding: 0.75rem;
   }
   
-  .coordinate-grid {
-    grid-template-columns: 1fr;
+  .measurement-box {
+    padding: 1rem;
   }
   
-  .thumbnail {
+  .plate-row {
+    gap: 0.5rem;
+  }
+  
+  .dimension-input {
     width: 50px;
-    height: 50px;
+    font-size: 0.95rem;
   }
   
-  .measurement-point {
-    width: 50px;
-    height: 50px;
+  .unit-text {
+    font-size: 0.8rem;
   }
   
-  .measurement-point::before {
-    top: -20px;
-    left: -20px;
-    right: -20px;
-    bottom: -20px;
+  .multiply-symbol {
+    font-size: 1rem;
   }
-}
+  
+  .dimension-labels {
+    gap: 2rem;
+  }
+  
+  .conversion-info {
+    gap: 2rem;
+  }
 
-@media (prefers-color-scheme: dark) {
-  .apple-product-page {
-    background: #ffffff;
-    color: #1d1d1f;
+  .zoom-controls {
+    padding: 0.3rem;
+    gap: 0.3rem;
   }
-  
-  .config-section,
-  .image-gallery,
-  .material-card,
-  .slide-group {
-    background: #ffffff;
+
+  .zoom-btn {
+    width: 28px;
+    height: 28px;
+    font-size: 0.9rem;
   }
-  
-  .coordinate-panel,
-  .points-panel {
-    background: #f8f9fa;
+
+  .zoom-level {
+    font-size: 0.7rem;
+    min-width: 35px;
   }
-  
-  .field-input {
-    background: #ffffff;
-    border-color: #e5e5ea;
-    color: #1d1d1f;
-  }
-  
-  .field-input:disabled {
-    background: #f5f5f7;
-  }
-  
-  .section-title,
-  .material-name,
-  .point-id,
-  .label-text,
-  .product-title {
-    color: #1d1d1f;
-  }
-  
-  .action-button.secondary {
-    background: #f5f5f7;
-    color: #1d1d1f;
-  }
-  
-  .action-button.secondary:hover:not(:disabled) {
-    background: #e5e5ea;
+
+  .reset-btn {
+    padding: 0.3rem 0.6rem;
+    font-size: 0.7rem;
   }
 }
 </style>
