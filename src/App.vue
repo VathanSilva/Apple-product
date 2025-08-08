@@ -1196,6 +1196,7 @@ export default {
   border-radius: 4px;
   font-size: 0.8rem;
   color: #666;
+  margin-bottom: 2rem;
 }
 
 .debug-info p {
@@ -1394,6 +1395,7 @@ export default {
     height: 40vh;
     padding: 1rem;
     flex-shrink: 0;
+    padding-left: 0px;
   }
 
   .canvas-wrapper {
@@ -1624,6 +1626,7 @@ export default {
 @media (max-width: 480px) {
   .main-content {
     padding: 0.75rem;
+    padding-left: 0px;
   }
   
   .measurement-box {
