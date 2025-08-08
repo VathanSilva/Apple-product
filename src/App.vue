@@ -85,9 +85,6 @@
           @dragover="!isMobile && handleDragOver($event)"
           @drop="!isMobile && handleDrop(index, $event)"
           @dragend="!isMobile && handleDragEnd"
-          @touchstart="isMobile && handleTouchDragStart(index, $event)"
-          @touchmove="isMobile && handleTouchDragMove($event)"
-          @touchend="isMobile && handleTouchDragEnd($event)"
           :style="touchDragState && touchDragState.isDragging && touchDragState.draggedIndex === index ? {
             transform: `translateY(${touchDragState.currentY - touchDragState.startY}px)`,
             zIndex: 1000,
@@ -95,7 +92,14 @@
           } : {}"
         >
           <div class="plate-row" :class="{ 'first-plate': index === 0 }">
-            <div class="plate-number" :class="{ active: index === activePlateIndex }">
+            <div 
+              class="plate-number" 
+              :class="{ active: index === activePlateIndex }"
+              @touchstart="isMobile && handleTouchDragStart(index, $event)"
+              @touchmove="isMobile && handleTouchDragMove($event)"
+              @touchend="isMobile && handleTouchDragEnd($event)"
+              :style="isMobile ? { cursor: 'grab', userSelect: 'none' } : {}"
+            >
               {{ index + 1 }}
             </div>
             <div class="plate-inputs">
@@ -104,6 +108,9 @@
                 v-model="plate.widthInput"
                 @input="validateAndUpdatePlate(index, 'width', $event.target.value)"
                 @blur="formatInput(index, 'width')"
+                @touchstart="$event.stopPropagation()"
+                @touchmove="$event.stopPropagation()"
+                @touchend="$event.stopPropagation()"
                 class="dimension-input" 
                 :class="{ error: plate.widthError }"
                 inputmode="decimal"
@@ -115,6 +122,9 @@
                 v-model="plate.heightInput"
                 @input="validateAndUpdatePlate(index, 'height', $event.target.value)"
                 @blur="formatInput(index, 'height')"
+                @touchstart="$event.stopPropagation()"
+                @touchmove="$event.stopPropagation()"
+                @touchend="$event.stopPropagation()"
                 class="dimension-input"
                 :class="{ error: plate.heightError }"
                 inputmode="decimal"
@@ -123,6 +133,9 @@
               <button 
                 v-if="plates.length > 1"
                 @click="deletePlate(index)"
+                @touchstart="$event.stopPropagation()"
+                @touchmove="$event.stopPropagation()"
+                @touchend="$event.stopPropagation()"
                 class="remove-btn"
                 :aria-label="'Delete plate ' + (index + 1)"
               >−</button>
@@ -1707,12 +1720,32 @@ export default {
     background-color: #f8f9fa;
     border: 2px solid #e9ecef;
     flex-shrink: 0;
+    position: relative;
+    touch-action: manipulation;
+    user-select: none;
+    -webkit-user-select: none;
+  }
+  
+  .plate-number::after {
+    content: '⋮⋮';
+    position: absolute;
+    right: -2px;
+    top: 50%;
+    transform: translateY(-50%);
+    font-size: 0.7rem;
+    color: #999;
+    line-height: 0.3;
+    letter-spacing: -1px;
   }
   
   .plate-number.active {
     background-color: #000000;
     color: white;
     border-color: #000000;
+  }
+  
+  .plate-number.active::after {
+    color: #ccc;
   }
   
   .plate-inputs {
